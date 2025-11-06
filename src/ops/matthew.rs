@@ -1,10 +1,10 @@
-use rand::seq::IndexedRandom;
+use rand::{Rng, rng, seq::IndexedRandom};
 use teloxide::{
     Bot,
     payloads::SetMessageReactionSetters,
     prelude::Requester,
     sugar::request::RequestReplyExt,
-    types::{Me, ReactionType, Update, UpdateKind::Message},
+    types::{Me, Message, ReactionType},
 };
 
 use crate::ops::error::Error;
@@ -35,34 +35,36 @@ fn random_quote() -> String {
         "я принесу тебе говна нахуй",
         "хорошо куколд сука",
     ];
-
-    let mut rng = thread_rng();
-    pool.choose(&mut rng)
-        .map(|q| q.to_string())
-        .expect("Can't find quote")
+    let mut rng = rng();
+    match pool.choose(&mut rng) {
+        Some(quote) => quote.to_string(),
+        None => panic!("Can't find quote"),
+    }
 }
 
-pub async fn process_matthew_msg(bot: Bot, update: Update, _: Me) -> Result<(), Error> {
-    match update.kind {
-        Message(msg) => match msg.text() {
-            Some(_) => {
-                let mut rng = thread_rng();
-                let should_reply: bool = rng.gen_bool(0.3); // 30% chance for reply (as irl)
+fn should_reply() -> bool {
+    let mut rng = rng();
+    rng.random_bool(0.3) // 30% chance for reply (as irl)
+}
 
-                if should_reply {
-                    let quote = random_quote();
-                    let _ = bot.send_message(msg.chat.id, quote).reply_to(msg.id).await;
-                    let _ = bot
-                        .set_message_reaction(msg.chat.id, msg.id)
-                        .reaction(vec![ReactionType::Emoji {
-                            emoji: "🍆".to_string(),
-                        }])
-                        .await;
-                }
-                Ok(())
-            }
-            None => Ok(()),
-        },
-        _ => Ok(()),
+pub async fn process_matthew_msg(bot: Bot, message: Message, _: Me) -> Result<(), Error> {
+    match message.text() {
+        Some(_) => {
+            if should_reply() {
+                let quote = random_quote();
+                let _ = bot
+                    .send_message(message.chat.id, quote)
+                    .reply_to(message.id)
+                    .await;
+                let _ = bot
+                    .set_message_reaction(message.chat.id, message.id)
+                    .reaction(vec![ReactionType::Emoji {
+                        emoji: "🍆".to_string(),
+                    }])
+                    .await;
+            };
+            Ok(())
+        }
+        None => Ok(()),
     }
 }

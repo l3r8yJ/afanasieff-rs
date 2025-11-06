@@ -4,7 +4,7 @@ use teloxide::{
     payloads::SetMessageReactionSetters,
     prelude::Requester,
     sugar::request::RequestReplyExt,
-    types::{Me, ReactionType, Update, UpdateKind::Message},
+    types::{Me, Message, ReactionType},
 };
 
 use crate::ops::error::Error;
@@ -33,25 +33,22 @@ fn random_quote() -> String {
     }
 }
 
-pub async fn process_vinograd_msg(bot: Bot, update: Update, _: Me) -> Result<(), Error> {
-    match update.kind {
-        Message(message) => match message.text() {
-            Some(_) => {
-                let q = random_quote();
-                let _ = bot
-                    .send_message(message.chat.id, q)
-                    .reply_to(message.id)
-                    .await;
-                let _ = bot
-                    .set_message_reaction(message.chat.id, message.id)
-                    .reaction(vec![ReactionType::Emoji {
-                        emoji: "🍇".to_string(),
-                    }])
-                    .await;
-                Ok(())
-            }
-            None => Ok(()),
-        },
-        _ => Ok(()),
+pub async fn process_vinograd_msg(bot: Bot, message: Message, _: Me) -> Result<(), Error> {
+    match message.text() {
+        Some(_) => {
+            let q = random_quote();
+            let _ = bot
+                .send_message(message.chat.id, q)
+                .reply_to(message.id)
+                .await;
+            let _ = bot
+                .set_message_reaction(message.chat.id, message.id)
+                .reaction(vec![ReactionType::Emoji {
+                    emoji: "🍇".to_string(),
+                }])
+                .await;
+            Ok(())
+        }
+        None => Ok(()),
     }
 }
