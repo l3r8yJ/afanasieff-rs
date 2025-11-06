@@ -1,0 +1,68 @@
+use rand::seq::IndexedRandom;
+use teloxide::{
+    Bot,
+    payloads::SetMessageReactionSetters,
+    prelude::Requester,
+    sugar::request::RequestReplyExt,
+    types::{Me, ReactionType, Update, UpdateKind::Message},
+};
+
+use crate::ops::error::Error;
+
+fn random_quote() -> String {
+    let pool = vec![
+        "Ты сдохнешь в аду урод",
+        "Я бы тебе просто по твоей лысине вонючей c пыру въебал",
+        "и че ? тебя нахуярить чтоли ты имеешь ввиду ?",
+        "Я ссал стрим на голову петину",
+        "терпим",
+        "Извините",
+        "Хорошо браток идем 1x1 с каждым 5 раундов по пол часа",
+        "Нихуя вы базарите, уроды",
+        "В этот день я и порвал эти шорты",
+        "я петух в законе",
+        "Вот именно, либералы пидорасы",
+        "Губами",
+        "Я Путин",
+        "Я белогвардеец",
+        "все как папа учил, только надо еще голым",
+        "ахтубинск город заднеприводных",
+        "не понял, куколд моя бабушка?",
+        "слышь ты нахуй, баба ты ебаная",
+        "аниме вообще для даунов",
+        "/pidor@UserOfTheDayBot",
+        "Тебе хуем жопу закрыли гандон блять",
+        "я принесу тебе говна нахуй",
+        "хорошо куколд сука",
+    ];
+
+    let mut rng = thread_rng();
+    pool.choose(&mut rng)
+        .map(|q| q.to_string())
+        .expect("Can't find quote")
+}
+
+pub async fn process_matthew_msg(bot: Bot, update: Update, _: Me) -> Result<(), Error> {
+    match update.kind {
+        Message(msg) => match msg.text() {
+            Some(_) => {
+                let mut rng = thread_rng();
+                let should_reply: bool = rng.gen_bool(0.3); // 30% chance for reply (as irl)
+
+                if should_reply {
+                    let quote = random_quote();
+                    let _ = bot.send_message(msg.chat.id, quote).reply_to(msg.id).await;
+                    let _ = bot
+                        .set_message_reaction(msg.chat.id, msg.id)
+                        .reaction(vec![ReactionType::Emoji {
+                            emoji: "🍆".to_string(),
+                        }])
+                        .await;
+                }
+                Ok(())
+            }
+            None => Ok(()),
+        },
+        _ => Ok(()),
+    }
+}
