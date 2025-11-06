@@ -7,9 +7,7 @@ use teloxide::{
     types::{Me, ReactionType, Update},
 };
 
-pub type Error = Box<dyn std::error::Error + Send + Sync>;
-
-const STREAM_KEYWORD: &str = "стрим";
+use crate::ops::{consts::STREAM_KEYWORD, error::Error};
 
 fn random_quote() -> String {
     let pool = vec![
