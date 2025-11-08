@@ -12,6 +12,7 @@ use crate::ops::{
     consts::{MATTHEW_KEYWORD, STREAM_KEYWORD, VINOGRAD_KEYWORD},
     matthew::send_random_matthew_quote,
     stream::send_random_stream_quote,
+    vinograd::send_random_vinograd_quote,
 };
 
 #[tokio::main]
@@ -42,7 +43,7 @@ async fn main() {
                     msg.text()
                         .is_some_and(|t| t.to_lowercase().contains(VINOGRAD_KEYWORD))
                 })
-                .endpoint(send_random_matthew_quote),
+                .endpoint(send_random_vinograd_quote),
         );
     Dispatcher::builder(bot, schema).build().dispatch().await;
 }

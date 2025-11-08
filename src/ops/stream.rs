@@ -43,5 +43,6 @@ const POOL: &[&str] = &[
 ///
 /// This function will return an error if message was empty.
 pub async fn send_random_stream_quote(bot: Bot, message: Message, me: Me) -> Result<(), Error> {
-    Ok(send_reply_message_set_reaction(random_string_from(POOL), "🤡", &bot, &message, &me).await)
+    send_reply_message_set_reaction(random_string_from(POOL), "🤡", &bot, &message, &me).await;
+    Ok(())
 }
