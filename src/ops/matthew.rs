@@ -43,7 +43,7 @@ const POOL: &[&str] = &[
 /// This function will return an error if message text was empty.
 pub async fn send_random_matthew_quote(bot: Bot, message: Message, me: Me) -> Result<(), Error> {
     if should_reply() {
-        send_reply_message_set_reaction(random_string_from(POOL), "🍆", &bot, &message, &me).await;
+        send_reply_message_set_reaction(random_string_from(POOL), "💔", &bot, &message, &me).await;
     }
     Ok(())
 }
