@@ -10,9 +10,8 @@ use teloxide::{
 
 use crate::ops::{
     consts::{MATTHEW_KEYWORD, STREAM_KEYWORD, VINOGRAD_KEYWORD},
-    matthew::process_matthew_msg,
-    stream::process_stream_msg,
-    vinograd::process_vinograd_msg,
+    matthew::send_random_matthew_quote,
+    stream::send_random_stream_quote,
 };
 
 #[tokio::main]
@@ -25,25 +24,25 @@ async fn main() {
             dptree::entry()
                 .filter(|msg: Message| {
                     msg.text()
-                        .map_or(false, |t| t.to_lowercase().contains(STREAM_KEYWORD))
+                        .is_some_and(|t| t.to_lowercase().contains(STREAM_KEYWORD))
                 })
-                .endpoint(process_stream_msg),
+                .endpoint(send_random_stream_quote),
         )
         .branch(
             dptree::entry()
                 .filter(|msg: Message| {
                     msg.text()
-                        .map_or(false, |t| t.to_lowercase().contains(MATTHEW_KEYWORD))
+                        .is_some_and(|t| t.to_lowercase().contains(MATTHEW_KEYWORD))
                 })
-                .endpoint(process_matthew_msg),
+                .endpoint(send_random_matthew_quote),
         )
         .branch(
             dptree::entry()
                 .filter(|msg: Message| {
                     msg.text()
-                        .map_or(false, |t| t.to_lowercase().contains(VINOGRAD_KEYWORD))
+                        .is_some_and(|t| t.to_lowercase().contains(VINOGRAD_KEYWORD))
                 })
-                .endpoint(process_vinograd_msg),
+                .endpoint(send_random_matthew_quote),
         );
     Dispatcher::builder(bot, schema).build().dispatch().await;
 }
