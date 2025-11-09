@@ -37,8 +37,9 @@ const POOL: &[&str] = &[
     "ты хуже гитлера",
 ];
 
+#[must_use]
 pub fn filter(msg: Message) -> bool {
-    contains_ignore_case(msg, STREAM_KEYWORD)
+    contains_ignore_case(&msg, STREAM_KEYWORD)
 }
 
 /// Send random stream message.

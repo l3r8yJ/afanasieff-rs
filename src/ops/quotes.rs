@@ -7,6 +7,7 @@ use rand::{rng, seq::IndexedRandom};
 /// # Panics when quote can't be found.
 ///
 /// Panics if quote was null.
+#[must_use]
 pub fn random_string_from<'a>(pool: &'a [&'a str]) -> &'a str {
     let mut rng = rng();
     pool.choose(&mut rng)

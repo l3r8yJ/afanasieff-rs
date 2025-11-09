@@ -1,7 +1,9 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{Arc, LazyLock},
+    time::Duration,
+};
 
 use dashmap::DashSet;
-use once_cell::sync::Lazy;
 use rand::{Rng, rng};
 use teloxide::{
     Bot,
@@ -14,7 +16,7 @@ use crate::ops::quotes::random_string_from;
 
 type ChatPool = Arc<DashSet<ChatId>>;
 
-static CHAT_POOL: Lazy<ChatPool> = Lazy::new(|| Arc::new(DashSet::new()));
+static CHAT_POOL: LazyLock<ChatPool> = LazyLock::new(|| Arc::new(DashSet::new()));
 
 const QUOTES_POOL: &[&str] = &[
     "Ты сдохнешь в аду урод",

@@ -35,8 +35,9 @@ const POOL: &[&str] = &[
     "хорошо куколд сука",
 ];
 
+#[must_use]
 pub fn filter(msg: Message) -> bool {
-    contains_ignore_case(msg, MATTHEW_KEYWORD)
+    contains_ignore_case(&msg, MATTHEW_KEYWORD)
 }
 
 /// Send random quote with 30% chance.
