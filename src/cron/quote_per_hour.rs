@@ -54,8 +54,8 @@ pub fn put_id_into_pool(update: Update) {
 pub fn start_cron(bot: Bot) {
     tokio::spawn(async move {
         log::info!("iterating over hour");
-        let mut random_interval = interval(Duration::from_mins(random_minutes_count()));
         loop {
+            let mut random_interval = interval(Duration::from_mins(random_minutes_count()));
             random_interval.tick().await;
             for id in CHAT_POOL.iter() {
                 let b = bot.clone();
