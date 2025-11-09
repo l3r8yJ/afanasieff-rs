@@ -3,7 +3,10 @@ use teloxide::{
     types::{Me, Message},
 };
 
-use crate::ops::{error::Error, quotes::random_string_from, send::send_reply_message_set_reaction};
+use crate::ops::{
+    consts::STREAM_KEYWORD, error::Error, predicates::contains_ignore_case,
+    quotes::random_string_from, send::send_reply_message_set_reaction,
+};
 
 const POOL: &[&str] = &[
     "Ты сдохнешь в аду урод",
@@ -33,6 +36,10 @@ const POOL: &[&str] = &[
     "Ну в моей личной системе ценностей ты тогда крыса вонючая не рукопожатия",
     "ты хуже гитлера",
 ];
+
+pub fn filter(msg: Message) -> bool {
+    contains_ignore_case(msg, STREAM_KEYWORD)
+}
 
 /// Send random stream message.
 ///

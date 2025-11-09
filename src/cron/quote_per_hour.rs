@@ -1,15 +1,22 @@
+use std::{sync::Arc, time::Duration};
+
+use dashmap::DashSet;
+use once_cell::sync::Lazy;
 use rand::{Rng, rng};
 use teloxide::{
     Bot,
-    types::{Me, Message},
+    prelude::Requester,
+    types::{ChatId, Update},
 };
+use tokio::time::interval;
 
-use crate::ops::{
-    consts::MATTHEW_KEYWORD, error::Error, predicates::contains_ignore_case,
-    quotes::random_string_from, send::send_reply_message_set_reaction,
-};
+use crate::ops::quotes::random_string_from;
 
-const POOL: &[&str] = &[
+type ChatPool = Arc<DashSet<ChatId>>;
+
+static CHAT_POOL: Lazy<ChatPool> = Lazy::new(|| Arc::new(DashSet::new()));
+
+const QUOTES_POOL: &[&str] = &[
     "Ты сдохнешь в аду урод",
     "Я бы тебе просто по твоей лысине вонючей c пыру въебал",
     "и че ? тебя нахуярить чтоли ты имеешь ввиду ?",
@@ -35,28 +42,33 @@ const POOL: &[&str] = &[
     "хорошо куколд сука",
 ];
 
-pub fn filter(msg: Message) -> bool {
-    contains_ignore_case(msg, MATTHEW_KEYWORD)
-}
-
-/// Send random quote with 30% chance.
-///
-/// # Panics
-///
-/// Panics if message text was empty.
-///
-/// # Errors
-///
-/// This function will return an error if message text was empty.
-pub async fn send_random_matthew_quote(bot: Bot, message: Message, me: Me) -> Result<(), Error> {
-    if should_reply() {
-        send_reply_message_set_reaction(random_string_from(POOL), "💔", &bot, &message, &me).await;
+pub fn put_id_into_pool(update: Update) {
+    if let teloxide::types::UpdateKind::Message(message) = update.kind {
+        let inserted = CHAT_POOL.insert(message.chat.id);
+        log::info!("chat id: '{}', inserted: '{}'", message.chat.id, inserted);
     }
-    Ok(())
 }
 
-/// Return true with 30% chance.
-fn should_reply() -> bool {
+pub fn start_cron(bot: Bot) {
+    tokio::spawn(async move {
+        log::info!("iterating over hour");
+        let mut random_interval = interval(Duration::from_mins(random_minutes_count()));
+        loop {
+            random_interval.tick().await;
+            for id in CHAT_POOL.iter() {
+                let b = bot.clone();
+                tokio::spawn(async move {
+                    let _ = b
+                        .send_message(id.clone(), random_string_from(QUOTES_POOL))
+                        .await;
+                    log::info!("message sent for id: '{}'", id.0);
+                });
+            }
+        }
+    });
+}
+
+fn random_minutes_count() -> u64 {
     let mut rng = rng();
-    rng.random_bool(0.3) // 30% chance for reply (as irl)
+    rng.random_range(30..120)
 }

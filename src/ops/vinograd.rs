@@ -3,7 +3,10 @@ use teloxide::{
     types::{Me, Message},
 };
 
-use crate::ops::{error::Error, quotes::random_string_from, send::send_reply_message_set_reaction};
+use crate::ops::{
+    consts::VINOGRAD_KEYWORD, error::Error, predicates::contains_ignore_case,
+    quotes::random_string_from, send::send_reply_message_set_reaction,
+};
 
 const POOL: &[&str] = &[
     r"
@@ -34,4 +37,8 @@ const POOL: &[&str] = &[
 pub async fn send_random_vinograd_quote(bot: Bot, message: Message, me: Me) -> Result<(), Error> {
     send_reply_message_set_reaction(random_string_from(POOL), "💩", &bot, &message, &me).await;
     Ok(())
+}
+
+pub fn filter(msg: Message) -> bool {
+    contains_ignore_case(msg, VINOGRAD_KEYWORD)
 }
