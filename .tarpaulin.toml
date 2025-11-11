@@ -1,0 +1,15 @@
+[coverage]
+# Exclude main.rs from coverage as it's typically just initialization
+exclude-files = ["src/main.rs"]
+
+# Timeout for running tests (in seconds)
+timeout = 120
+
+# Output format
+out = ["Lcov"]
+
+# Verbose output
+verbose = true
+
+# Run all tests
+all-features = true
