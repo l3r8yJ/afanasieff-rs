@@ -1,7 +1,15 @@
+#![allow(clippy::multiple_crate_versions)]
+
 pub mod cron;
 pub mod ops;
 
-use teloxide::{Bot, dispatching::UpdateFilterExt, dptree, prelude::Dispatcher, types::Update};
+use teloxide::{
+    Bot,
+    dispatching::UpdateFilterExt,
+    dptree,
+    prelude::Dispatcher,
+    types::{Message, Update},
+};
 
 use crate::ops::{
     matthew::send_random_matthew_quote, stream::send_random_stream_quote,
@@ -18,17 +26,17 @@ async fn main() {
         .inspect(cron::quote_per_hour::put_id_into_pool)
         .branch(
             Update::filter_message()
-                .filter(ops::stream::filter)
+                .filter(|m: Message| ops::stream::filter(&m))
                 .endpoint(send_random_stream_quote),
         )
         .branch(
             Update::filter_message()
-                .filter(ops::matthew::filter)
+                .filter(|m: Message| ops::matthew::filter(&m))
                 .endpoint(send_random_matthew_quote),
         )
         .branch(
             Update::filter_message()
-                .filter(ops::vinograd::filter)
+                .filter(|m: Message| ops::vinograd::filter(&m))
                 .endpoint(send_random_vinograd_quote),
         );
     Dispatcher::builder(bot, main_branch)

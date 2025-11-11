@@ -40,6 +40,6 @@ pub async fn send_random_vinograd_quote(bot: Bot, message: Message, me: Me) -> R
 }
 
 #[must_use]
-pub fn filter(msg: Message) -> bool {
-    contains_ignore_case(&msg, VINOGRAD_KEYWORD)
+pub fn filter(msg: &Message) -> bool {
+    contains_ignore_case(msg, VINOGRAD_KEYWORD)
 }

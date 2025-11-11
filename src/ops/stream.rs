@@ -38,8 +38,8 @@ const POOL: &[&str] = &[
 ];
 
 #[must_use]
-pub fn filter(msg: Message) -> bool {
-    contains_ignore_case(&msg, STREAM_KEYWORD)
+pub fn filter(msg: &Message) -> bool {
+    contains_ignore_case(msg, STREAM_KEYWORD)
 }
 
 /// Send random stream message.

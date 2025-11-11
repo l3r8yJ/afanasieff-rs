@@ -60,9 +60,7 @@ pub fn start_cron(bot: Bot) {
             for id in CHAT_POOL.iter() {
                 let b = bot.clone();
                 tokio::spawn(async move {
-                    let _ = b
-                        .send_message(id.clone(), random_string_from(QUOTES_POOL))
-                        .await;
+                    let _ = b.send_message(*id, random_string_from(QUOTES_POOL)).await;
                     log::info!("message sent for id: '{}'", id.0);
                 });
             }

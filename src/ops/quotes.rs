@@ -4,7 +4,7 @@ use rand::{rng, seq::IndexedRandom};
 
 /// Returns random String from provided pool of Strings.
 ///
-/// # Panics when quote can't be found.
+/// # Panics
 ///
 /// Panics if quote was null.
 #[must_use]
