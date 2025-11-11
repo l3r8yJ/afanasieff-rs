@@ -1,5 +1,3 @@
-use core::panic;
-
 use rand::{rng, seq::IndexedRandom};
 
 /// Returns random String from provided pool of Strings.
@@ -8,8 +6,7 @@ use rand::{rng, seq::IndexedRandom};
 ///
 /// Panics if quote was null.
 #[must_use]
-pub fn random_string_from<'a>(pool: &'a [&'a str]) -> &'a str {
+pub fn random_string_from<'a>(pool: &'a [&'a str]) -> Option<&'a str> {
     let mut rng = rng();
-    pool.choose(&mut rng)
-        .map_or_else(|| panic!("Can't take the quote"), |s| *s)
+    pool.choose(&mut rng).copied()
 }
