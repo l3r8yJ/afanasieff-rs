@@ -1,2 +1,63 @@
-/target
+# Rust
+/target/
 Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+.windows-build-tools/
+
+# Test coverage
+*.lcov
+*.profraw
+/coverage/
+*.profdata
+
+# Build artifacts
+/dist/
+/build/
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Python (if any scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+.#*
+
+# Tarpaulin coverage
+cobertura.xml
+tarpaulin-report.html

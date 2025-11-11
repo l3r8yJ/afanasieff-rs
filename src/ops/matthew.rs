@@ -1,7 +1,7 @@
-use rand::{Rng, rng};
+use rand::{rng, Rng};
 use teloxide::{
-    Bot,
     types::{Me, Message},
+    Bot,
 };
 
 use crate::ops::{

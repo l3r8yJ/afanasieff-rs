@@ -4,11 +4,11 @@ use std::{
 };
 
 use dashmap::DashSet;
-use rand::{Rng, rng};
+use rand::{rng, Rng};
 use teloxide::{
-    Bot,
     prelude::Requester,
     types::{ChatId, Update},
+    Bot,
 };
 use tokio::time::interval;
 

@@ -4,11 +4,11 @@ pub mod cron;
 pub mod ops;
 
 use teloxide::{
-    Bot,
     dispatching::UpdateFilterExt,
     dptree,
     prelude::Dispatcher,
     types::{Message, Update},
+    Bot,
 };
 
 use crate::ops::{
