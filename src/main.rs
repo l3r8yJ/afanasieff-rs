@@ -3,12 +3,13 @@
 pub mod cron;
 pub mod ops;
 
+use chrono::Utc;
 use teloxide::{
+    Bot,
     dispatching::UpdateFilterExt,
     dptree,
     prelude::Dispatcher,
-    types::{Message, Update},
-    Bot,
+    types::{Message, Update, UpdateKind},
 };
 
 use crate::ops::{
@@ -16,14 +17,28 @@ use crate::ops::{
     vinograd::send_random_vinograd_quote,
 };
 
+const FIVE_MINS: f32 = 5.0 * 60.0;
+
 #[tokio::main]
 async fn main() {
     pretty_env_logger::init();
     log::info!("Starting the bot...");
     let bot = Bot::from_env();
-    cron::quote_per_hour::start_cron(bot.clone());
+    tokio::spawn(cron::quote_per_hour::start_cron(bot.clone()));
     let main_branch = dptree::entry()
         .inspect(cron::quote_per_hour::put_id_into_pool)
+        .filter(|u: Update| match u.kind {
+            UpdateKind::Message(m) => {
+                let now = Utc::now();
+                let is_too_old = now.signed_duration_since(m.date).as_seconds_f32() > FIVE_MINS;
+                log::info!("message is_too_old: '{}'", is_too_old);
+                if is_too_old {
+                    log::info!("message to old skipping...")
+                }
+                !is_too_old
+            }
+            _ => false,
+        })
         .branch(
             Update::filter_message()
                 .filter(|m: Message| ops::stream::filter(&m))

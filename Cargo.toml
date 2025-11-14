@@ -25,6 +25,7 @@ openssl = { version = "0.10", features = ["vendored"] }
 dashmap = "6.1.0"
 once_cell = "1.21.3"
 teloxide_tests = "0.4.0"
+chrono = "0.4.42"
 
 [package.metadata.cross.target.x86_64-unknown-linux-musl]
 image = "ghcr.io/cross-rs/x86_64-unknown-linux-musl:latest"

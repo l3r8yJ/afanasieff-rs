@@ -1,16 +1,16 @@
 use std::{
     sync::{Arc, LazyLock},
+    thread::sleep,
     time::Duration,
 };
 
 use dashmap::DashSet;
-use rand::{rng, Rng};
+use rand::{Rng, rng};
 use teloxide::{
+    Bot,
     prelude::Requester,
     types::{ChatId, Update},
-    Bot,
 };
-use tokio::time::interval;
 
 use crate::ops::quotes::random_string_from;
 
@@ -51,26 +51,24 @@ pub fn put_id_into_pool(update: Update) {
     }
 }
 
-pub fn start_cron(bot: Bot) {
-    tokio::spawn(async move {
+pub async fn start_cron(bot: Bot) {
+    loop {
         log::info!("iterating over hour");
-        loop {
-            let mut random_interval = interval(Duration::from_mins(random_minutes_count()));
-            random_interval.tick().await;
-            for id in CHAT_POOL.iter() {
-                let b = bot.clone();
-                tokio::spawn(async move {
-                    if let Some(s) = random_string_from(QUOTES_POOL) {
-                        let _ = b.send_message(*id, s).await;
-                        log::info!("message sent for id: '{}'", id.0);
-                    }
-                });
-            }
+        for id in CHAT_POOL.iter() {
+            let b = bot.clone();
+            tokio::spawn(async move {
+                if let Some(s) = random_string_from(QUOTES_POOL) {
+                    let _ = b.send_message(*id, s).await;
+                    log::info!("message sent for id: '{}'", id.0);
+                }
+            });
         }
-    });
+        let delay = Duration::from_mins(random_minutes_count());
+        sleep(delay);
+    }
 }
 
 fn random_minutes_count() -> u64 {
     let mut rng = rng();
-    rng.random_range(30..120)
+    rng.random_range(60..180)
 }
