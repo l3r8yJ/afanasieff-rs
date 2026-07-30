@@ -19,6 +19,9 @@ fn collect_matthew_message(message: &Message, chat: i64) {
     let Some(text) = message.text() else {
         return;
     };
+    if is_too_short(text) {
+        return;
+    }
     let sent_at = message.date.to_rfc3339();
     with_db(|connection| store_matthew_message(connection, chat, message.id.0, &sent_at, text));
     log::info!(
@@ -33,4 +36,8 @@ fn is_written_by_matthew(message: &Message) -> bool {
             .as_deref()
             .is_some_and(|username| username.eq_ignore_ascii_case(MATTHEW_USERNAME))
     })
+}
+
+fn is_too_short(str: &str) -> bool {
+    str.len() > 10
 }
