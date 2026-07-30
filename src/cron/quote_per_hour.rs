@@ -1,6 +1,5 @@
 use std::{
     sync::{Arc, LazyLock},
-    thread::sleep,
     time::Duration,
 };
 
@@ -11,6 +10,7 @@ use teloxide::{
     prelude::Requester,
     types::{ChatId, Update},
 };
+use tokio::time::sleep;
 
 use crate::ops::quotes::random_string_from;
 
@@ -64,7 +64,7 @@ pub async fn start_cron(bot: Bot) {
             });
         }
         let delay = Duration::from_mins(random_minutes_count());
-        sleep(delay);
+        sleep(delay).await;
     }
 }
 

@@ -27,10 +27,6 @@ const POOL: &[&str] = &[
 
 /// Sends random vinograd quote.
 ///
-/// # Panics
-///
-/// Panics if message text is empty.
-///
 /// # Errors
 ///
 /// This function will return an error if message text is empty.

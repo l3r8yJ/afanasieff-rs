@@ -62,10 +62,6 @@ pub fn filter(msg: &Message) -> bool {
 
 /// Send random stream message.
 ///
-/// # Panics
-///
-/// Panics if text in message was empty.
-///
 /// # Errors
 ///
 /// This function will return an error if message was empty.

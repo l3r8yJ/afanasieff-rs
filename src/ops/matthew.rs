@@ -42,10 +42,6 @@ pub fn filter(msg: &Message) -> bool {
 
 /// Send random quote with 30% chance.
 ///
-/// # Panics
-///
-/// Panics if message text was empty.
-///
 /// # Errors
 ///
 /// This function will return an error if message text was empty.

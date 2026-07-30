@@ -8,14 +8,6 @@ use teloxide::{
 };
 
 /// Replies to given message and set reaction on it.
-///
-/// # Panics
-///
-/// Panics if text in message was empty.
-///
-/// # Errors
-///
-/// This function will return an error if message was empty.
 pub async fn send_reply_message_set_reaction(
     text: &str,
     emoji: &str,
