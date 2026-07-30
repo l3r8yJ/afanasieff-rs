@@ -84,7 +84,7 @@ pub fn chats(connection: &Connection) -> rusqlite::Result<Vec<i64>> {
     Ok(chats)
 }
 
-/// Stores a message written by Matthew, ignoring the ones already stored.
+/// Stores a message written by Matthew, telling whether it was a new one.
 ///
 /// # Errors
 ///
@@ -95,13 +95,13 @@ pub fn store_matthew_message(
     message: i32,
     sent_at: &str,
     text: &str,
-) -> rusqlite::Result<()> {
-    connection.execute(
+) -> rusqlite::Result<bool> {
+    let stored = connection.execute(
         "INSERT OR IGNORE INTO matthew_messages (chat_id, message_id, sent_at, text)
          VALUES (?1, ?2, ?3, ?4)",
         params![chat, message, sent_at, text],
     )?;
-    Ok(())
+    Ok(stored > 0)
 }
 
 #[cfg(test)]
@@ -220,6 +220,21 @@ mod tests {
         assert_eq!(
             stored, 2,
             "stored messages count was '{stored}', expected '2'"
+        );
+    }
+
+    #[test]
+    fn tells_new_matthew_message_from_already_stored_one() {
+        let connection = connection();
+        let first =
+            store_matthew_message(&connection, 42, 7, "2026-07-30T17:00:00Z", "терпим").unwrap();
+        let again =
+            store_matthew_message(&connection, 42, 7, "2026-07-30T17:00:00Z", "терпим").unwrap();
+        assert_eq!(
+            (first, again),
+            (true, false),
+            "storing the same message twice reported '{:?}', expected '(true, false)'",
+            (first, again)
         );
     }
 }
