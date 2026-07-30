@@ -31,3 +31,6 @@ logs:
 
 db:
     sqlite3 ~/.local/state/afanasieff/afanasieff.db
+
+db-tui:
+    rainfrog --url sqlite://$HOME/.local/state/afanasieff/afanasieff.db
