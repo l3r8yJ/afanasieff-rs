@@ -61,3 +61,8 @@ __pycache__/
 # Tarpaulin coverage
 cobertura.xml
 tarpaulin-report.html
+
+# Database
+*.db
+*.db-journal
+*.db-wal

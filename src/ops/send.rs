@@ -3,8 +3,8 @@ use teloxide::prelude::Requester;
 use teloxide::sugar::request::RequestReplyExt;
 use teloxide::types::ReactionType;
 use teloxide::{
-    types::{Me, Message},
     Bot,
+    types::{Me, Message},
 };
 
 /// Replies to given message and set reaction on it.

@@ -26,7 +26,7 @@ async fn main() {
     let bot = Bot::from_env();
     tokio::spawn(cron::quote_per_hour::start_cron(bot.clone()));
     let main_branch = dptree::entry()
-        .inspect(cron::quote_per_hour::put_id_into_pool)
+        .inspect(ops::intake::observe)
         .filter(|u: Update| match u.kind {
             UpdateKind::Message(m) => {
                 let now = Utc::now();

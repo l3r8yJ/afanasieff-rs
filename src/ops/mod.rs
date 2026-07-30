@@ -1,8 +1,9 @@
 pub mod consts;
 pub mod error;
+pub mod intake;
 pub mod matthew;
 pub mod predicates;
-pub mod quotes;
 pub mod send;
+pub mod store;
 pub mod stream;
 pub mod vinograd;
