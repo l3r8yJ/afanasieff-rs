@@ -65,6 +65,21 @@ impl Store {
         })
     }
 
+    /// Returns every stored quote of the given source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn quotes(&self, source: &str) -> rusqlite::Result<Vec<String>> {
+        self.with(|connection| {
+            let mut statement = connection.prepare("SELECT text FROM quotes WHERE source = ?1")?;
+            let quotes = statement
+                .query_map(params![source], |row| row.get(0))?
+                .collect::<rusqlite::Result<Vec<String>>>()?;
+            Ok(quotes)
+        })
+    }
+
     /// Remembers a chat the bot has seen.
     ///
     /// # Errors

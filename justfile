@@ -23,7 +23,7 @@ setup-env:
         source "$HOME/.cargo/env"
     fi
     rustup toolchain install stable --component rustfmt clippy
-    cargo install --locked cargo-audit rainfrog
+    cargo install --locked cargo-audit cargo-tarpaulin rainfrog
 
 build:
     cargo build --release

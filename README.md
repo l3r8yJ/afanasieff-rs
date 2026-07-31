@@ -30,7 +30,7 @@ just setup-env
 That brings in everything the repo needs — a C toolchain and `perl` for the
 dependencies that build from source, the Rust toolchain with `rustfmt` and
 `clippy`, `sqlite3`, and the extra tools some recipes call (`cargo-audit`,
-`rainfrog`). It knows `pacman`, `apt`, `dnf` and `brew`, and asks for `sudo`
+`cargo-tarpaulin`, `rainfrog`). It knows `pacman`, `apt`, `dnf` and `brew`, and asks for `sudo`
 where the package manager needs it.
 
 The one thing it cannot fetch for you is a Telegram bot token: get one from
@@ -52,6 +52,7 @@ Every routine task goes through [`just`](https://github.com/casey/just) — the
 | `just check` | Formatting, lints, tests and docs |
 | `just build` | Release build |
 | `just deploy` | Check, build and restart |
+| `just coverage` | Test coverage against the 70% floor |
 | `just audit` | Dependency vulnerability scan |
 | `just logs` | Follow the running service's logs |
 | `just db` / `just db-tui` | Open the quote database in a shell or a TUI |
