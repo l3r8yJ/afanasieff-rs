@@ -11,6 +11,7 @@ repository = "https://github.com/l3r8yJ/afanasieff-rs"
 readme = "README.md"
 keywords = ["telegram", "bot", "teloxide"]
 categories = ["network-programming"]
+publish = false
 
 [lints.clippy]
 multiple_crate_versions = "allow"

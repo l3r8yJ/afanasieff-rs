@@ -167,7 +167,7 @@ impl Store {
 /// # Errors
 ///
 /// Returns an error when a migration cannot be executed.
-pub fn migrate(connection: &Connection) -> rusqlite::Result<()> {
+fn migrate(connection: &Connection) -> rusqlite::Result<()> {
     let applied: usize = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     for (number, migration) in MIGRATIONS.iter().enumerate().skip(applied) {
         connection.execute_batch(migration)?;
