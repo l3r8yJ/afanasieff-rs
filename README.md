@@ -1,55 +1,46 @@
 # Afanasieff-rs
 
-A Rust-based Telegram bot that delivers inspirational quotes from various sources.
+A Telegram chat bot that keeps a group's own quotes alive and throws them back
+at the chat.
 
-## Features
+## What it does
 
-- **Multiple Quote Sources**: Delivers quotes from Matthew, Vinograd, and Stream sources
-- **Scheduled Delivery**: Automatically sends hourly quotes via cron job
-- **Telegram Integration**: Built with the elegant [teloxide](https://github.com/teloxide/teloxide) framework
-- **Async/Await**: Fully asynchronous design using Tokio runtime
+- **Reacts to keywords.** When someone mentions one of the tracked names, the
+  bot replies with a random quote attributed to that person and reacts to the
+  message.
+- **Speaks up on its own.** Every so often it picks a chat it knows and drops a
+  quote there unprompted.
+- **Learns from the chat.** Messages worth remembering are picked up as they
+  arrive and gradually become part of the quote pool, so the bot's material
+  grows with the conversation.
 
-## Quote Sources
+## Quote sources
 
-- **Matthew**: Inspirational quotes from Matthew
-- **Vinograd**: Wisdom from Vinograd
-- **Stream**: Dynamic stream-based quotes
+Quotes are grouped by who said them — `matthew`, `stream` and `vinograd`. Each
+source has its own keyword and its own reaction emoji.
 
-## Building
+## Working on it
 
-```bash
-cargo build --release
-```
+Every routine task goes through [`just`](https://github.com/casey/just) — the
+`justfile` is the entry point, `just --list` shows everything.
 
-## Running
+| Recipe | What it does |
+| --- | --- |
+| `just` | Full path: checks, build, restart the service, show its status |
+| `just check` | Formatting, lints, tests and docs |
+| `just build` | Release build |
+| `just deploy` | Check, build and restart |
+| `just audit` | Dependency vulnerability scan |
+| `just logs` | Follow the running service's logs |
+| `just db` / `just db-tui` | Open the quote database in a shell or a TUI |
 
-Set your Telegram bot token as an environment variable:
+## Status
 
-```bash
-export TELOXIDE_TOKEN="your_bot_token_here"
-cargo run
-```
-
-## Requirements
-
-- Rust 1.82+
-
-## Development
-
-Run clippy for linting:
-
-```bash
-cargo clippy -- -D clippy::all -D clippy::pedantic -D clippy::nursery -D clippy::cargo -D warnings
-```
-
-Run tests:
-
-```bash
-cargo test
-```
+A small personal project, written in Rust, running for one group chat. The
+quote pool is in-jokes and is not meant to be read out of context.
 
 ## License
 
-MIT License - See [LICENSE](./LICENSE) file for details
+MIT License — see [LICENSE](./LICENSE).
 
 Copyright (c) 2024 Ivan Ivanchuk
