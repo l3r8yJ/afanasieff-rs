@@ -3,15 +3,18 @@ use std::time::Duration;
 
 use rand::{rng, seq::IndexedRandom};
 use tokio::time::sleep;
+use tokio_util::sync::CancellationToken;
 
 use crate::ops::{consts::SOURCES, intake::preview, store::Store};
 
 const TICK: Duration = Duration::from_secs(30);
 
-pub async fn start_promoting(store: Arc<Store>) {
+pub async fn start_promoting(store: Arc<Store>, shutdown: CancellationToken) {
     loop {
-        promote_one_message(&store);
-        sleep(TICK).await;
+        tokio::select! {
+            () = shutdown.cancelled() => break,
+            () = sleep(TICK) => promote_one_message(&store),
+        }
     }
 }
 

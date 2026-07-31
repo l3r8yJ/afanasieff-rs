@@ -8,6 +8,8 @@ use std::sync::Arc;
 use afanasieff_rs::ops::store::Store;
 use afanasieff_rs::{cron, handler_tree};
 use teloxide::{Bot, dptree, prelude::Dispatcher};
+use tokio::signal::unix::{SignalKind, signal};
+use tokio_util::sync::CancellationToken;
 
 #[tokio::main]
 async fn main() {
@@ -19,22 +21,35 @@ async fn main() {
         std::fs::create_dir_all(parent).expect("the database directory is creatable");
     }
     let store = Arc::new(Store::open(&path).expect("the database opens and migrates at startup"));
-    tokio::spawn(cron::quote_per_hour::start_cron(
+    let shutdown = CancellationToken::new();
+    let hourly = tokio::spawn(cron::quote_per_hour::start_cron(
         bot.clone(),
         Arc::clone(&store),
+        shutdown.clone(),
     ));
-    tokio::spawn(cron::messages_to_quotes::start_promoting(Arc::clone(
-        &store,
-    )));
-    Dispatcher::builder(bot, handler_tree())
+    let promoting = tokio::spawn(cron::messages_to_quotes::start_promoting(
+        Arc::clone(&store),
+        shutdown.clone(),
+    ));
+    let mut dispatcher = Dispatcher::builder(bot, handler_tree())
         .dependencies(dptree::deps![store])
         .default_handler(|update| async move {
             log::debug!("unhandled update: '{update:?}'");
         })
         .enable_ctrlc_handler()
-        .build()
-        .dispatch()
-        .await;
+        .build();
+    let mut terminate = signal(SignalKind::terminate()).expect("SIGTERM handler installs");
+    tokio::select! {
+        () = dispatcher.dispatch() => {},
+        _ = terminate.recv() => log::info!("received SIGTERM, shutting down"),
+    }
+    shutdown.cancel();
+    if let Err(error) = hourly.await {
+        log::error!("the hourly quote task ended badly: '{error}'");
+    }
+    if let Err(error) = promoting.await {
+        log::error!("the promotion task ended badly: '{error}'");
+    }
 }
 
 fn database_path() -> PathBuf {
