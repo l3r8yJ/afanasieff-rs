@@ -25,6 +25,7 @@ async fn main() {
     log::info!("Starting the bot...");
     let bot = Bot::from_env();
     tokio::spawn(cron::quote_per_hour::start_cron(bot.clone()));
+    tokio::spawn(cron::messages_to_quotes::start_promoting());
     let main_branch = dptree::entry()
         .inspect(ops::intake::observe)
         .filter(|u: Update| match u.kind {
@@ -55,6 +56,9 @@ async fn main() {
                 .endpoint(send_random_vinograd_quote),
         );
     Dispatcher::builder(bot, main_branch)
+        .default_handler(|update| async move {
+            log::debug!("unhandled update: '{update:?}'");
+        })
         .enable_ctrlc_handler()
         .build()
         .dispatch()

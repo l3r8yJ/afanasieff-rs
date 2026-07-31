@@ -5,3 +5,5 @@ pub const MATTHEW_KEYWORD: &str = "matthew";
 pub const STREAM_SOURCE: &str = "stream";
 pub const VINOGRAD_SOURCE: &str = "vinograd";
 pub const MATTHEW_SOURCE: &str = "matthew";
+
+pub const SOURCES: &[&str] = &[STREAM_SOURCE, VINOGRAD_SOURCE, MATTHEW_SOURCE];

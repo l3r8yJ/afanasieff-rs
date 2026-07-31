@@ -104,10 +104,42 @@ pub fn store_matthew_message(
     Ok(stored > 0)
 }
 
+/// Moves the message Matthew wrote first into the quotes of the given source.
+///
+/// Returns the moved text, or nothing when no message is waiting.
+///
+/// # Errors
+///
+/// Returns an error when the move cannot be executed.
+pub fn promote_oldest_matthew_message(
+    connection: &Connection,
+    source: &str,
+) -> rusqlite::Result<Option<String>> {
+    let transaction = connection.unchecked_transaction()?;
+    let oldest = transaction
+        .query_row(
+            "SELECT id, text FROM matthew_messages ORDER BY sent_at, id LIMIT 1",
+            [],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()?;
+    let Some((id, text)) = oldest else {
+        return Ok(None);
+    };
+    transaction.execute(
+        "INSERT OR IGNORE INTO quotes (source, text) VALUES (?1, ?2)",
+        params![source, text],
+    )?;
+    transaction.execute("DELETE FROM matthew_messages WHERE id = ?1", params![id])?;
+    transaction.commit()?;
+    Ok(Some(text))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        Connection, MIGRATIONS, chats, migrate, random_quote, remember_chat, store_matthew_message,
+        Connection, MIGRATIONS, chats, migrate, promote_oldest_matthew_message, random_quote,
+        remember_chat, store_matthew_message,
     };
 
     fn connection() -> Connection {
@@ -220,6 +252,44 @@ mod tests {
         assert_eq!(
             stored, 2,
             "stored messages count was '{stored}', expected '2'"
+        );
+    }
+
+    #[test]
+    fn promotes_oldest_matthew_message_into_quotes() {
+        let connection = connection();
+        store_matthew_message(&connection, 42, 7, "2026-07-30T17:00:00Z", "первое").unwrap();
+        store_matthew_message(&connection, 42, 8, "2026-07-30T17:01:00Z", "второе").unwrap();
+        let promoted = promote_oldest_matthew_message(&connection, "stream")
+            .unwrap()
+            .unwrap();
+        let waiting: i64 = connection
+            .query_row("SELECT COUNT(*) FROM matthew_messages", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        let quoted: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM quotes WHERE source = 'stream' AND text = 'первое'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            (promoted.as_str(), waiting, quoted),
+            ("первое", 1, 1),
+            "promotion reported '{promoted}' with '{waiting}' waiting and '{quoted}' quoted, \
+             expected 'первое' with '1' waiting and '1' quoted"
+        );
+    }
+
+    #[test]
+    fn promotes_nothing_when_no_matthew_message_waits() {
+        let connection = connection();
+        let promoted = promote_oldest_matthew_message(&connection, "stream").unwrap();
+        assert!(
+            promoted.is_none(),
+            "promotion of an empty table reported '{promoted:?}', expected none"
         );
     }
 

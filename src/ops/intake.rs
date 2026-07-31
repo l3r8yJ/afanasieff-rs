@@ -55,7 +55,7 @@ fn is_written_by_matthew(message: &Message) -> bool {
     })
 }
 
-fn preview(text: &str) -> String {
+pub fn preview(text: &str) -> String {
     let shortened: String = text.chars().take(PREVIEW_CHARS).collect();
     if shortened.chars().count() < text.chars().count() {
         format!("{shortened}...")
