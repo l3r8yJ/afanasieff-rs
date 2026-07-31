@@ -66,3 +66,6 @@ tarpaulin-report.html
 *.db
 *.db-journal
 *.db-wal
+
+# Brainstorming artifacts
+/docs/superpowers/
