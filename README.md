@@ -19,6 +19,27 @@ at the chat.
 Quotes are grouped by who said them — `matthew`, `stream` and `vinograd`. Each
 source has its own keyword and its own reaction emoji.
 
+## Getting started
+
+Install [`just`](https://github.com/casey/just), then let it do the rest:
+
+```
+just setup-env
+```
+
+That brings in everything the repo needs — a C toolchain and `perl` for the
+dependencies that build from source, the Rust toolchain with `rustfmt` and
+`clippy`, `sqlite3`, and the extra tools some recipes call (`cargo-audit`,
+`rainfrog`). It knows `pacman`, `apt`, `dnf` and `brew`, and asks for `sudo`
+where the package manager needs it.
+
+The one thing it cannot fetch for you is a Telegram bot token: get one from
+[@BotFather](https://t.me/BotFather) and export it as `TELOXIDE_TOKEN` before
+the bot starts.
+
+Deploy and log recipes additionally expect a `systemd` user unit named
+`afanasieff`, which only matters on the machine that actually runs the bot.
+
 ## Working on it
 
 Every routine task goes through [`just`](https://github.com/casey/just) — the
@@ -26,6 +47,7 @@ Every routine task goes through [`just`](https://github.com/casey/just) — the
 
 | Recipe | What it does |
 | --- | --- |
+| `just setup-env` | Install the toolchain and the tools the other recipes need |
 | `just` | Full path: checks, build, restart the service, show its status |
 | `just check` | Formatting, lints, tests and docs |
 | `just build` | Release build |

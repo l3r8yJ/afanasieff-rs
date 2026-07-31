@@ -1,5 +1,30 @@
 default: deploy
 
+setup-env:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if command -v pacman >/dev/null 2>&1; then
+        sudo pacman -S --needed --noconfirm base-devel perl sqlite rustup
+    elif command -v apt-get >/dev/null 2>&1; then
+        sudo apt-get update
+        sudo apt-get install -y build-essential perl sqlite3 curl
+    elif command -v dnf >/dev/null 2>&1; then
+        sudo dnf install -y gcc make perl sqlite curl
+    elif command -v brew >/dev/null 2>&1; then
+        brew install sqlite rustup
+    else
+        echo "unknown package manager: install a C toolchain, perl and sqlite by hand" >&2
+        exit 1
+    fi
+    if ! command -v rustup >/dev/null 2>&1; then
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    fi
+    if [ -f "$HOME/.cargo/env" ]; then
+        source "$HOME/.cargo/env"
+    fi
+    rustup toolchain install stable --component rustfmt clippy
+    cargo install --locked cargo-audit rainfrog
+
 build:
     cargo build --release
 
