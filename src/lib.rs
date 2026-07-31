@@ -20,6 +20,9 @@ pub mod ops;
 
 const FIVE_MINS: f32 = 5.0 * 60.0;
 
+/// Returns the dispatcher tree: it records every incoming chat, drops
+/// messages older than five minutes, and replies with a random quote on
+/// the stream, matthew or vinograd keyword branches.
 pub fn handler_tree() -> UpdateHandler<Error> {
     dptree::entry()
         .inspect(|update: Update, store: Arc<Store>| ops::intake::observe(&store, update))
@@ -28,6 +31,9 @@ pub fn handler_tree() -> UpdateHandler<Error> {
                 let now = Utc::now();
                 let is_too_old = now.signed_duration_since(m.date).as_seconds_f32() > FIVE_MINS;
                 log::info!("message is_too_old: '{is_too_old}'");
+                if is_too_old {
+                    log::info!("message to old skipping...")
+                }
                 !is_too_old
             }
             _ => false,

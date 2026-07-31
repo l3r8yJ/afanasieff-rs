@@ -109,8 +109,7 @@ impl Store {
     ) -> rusqlite::Result<bool> {
         self.with(|connection| {
             let stored = connection.execute(
-                "INSERT OR IGNORE INTO matthew_messages (chat_id, message_id, sent_at, text)
-                 VALUES (?1, ?2, ?3, ?4)",
+                "INSERT OR IGNORE INTO matthew_messages (chat_id, message_id, sent_at, text) VALUES (?1, ?2, ?3, ?4)",
                 params![chat, message, sent_at, text],
             )?;
             Ok(stored > 0)

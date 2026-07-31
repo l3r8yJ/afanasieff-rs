@@ -8,7 +8,7 @@ fn seeds_quotes_when_opening_a_fresh_database() {
     let quote = store.random_quote(MATTHEW_SOURCE).unwrap();
     assert!(
         quote.is_some(),
-        "a fresh database is seeded with matthew quotes"
+        "matthew quote from a fresh database was '{quote:?}', expected a seeded quote"
     );
 }
 
@@ -20,5 +20,10 @@ fn keeps_its_rows_when_reopening_an_existing_database() {
     first.remember_chat(777).unwrap();
     drop(first);
     let second = Store::open(&path).unwrap();
-    assert_eq!(second.chats().unwrap(), vec![777], "chats survive a reopen");
+    let chats = second.chats().unwrap();
+    assert_eq!(
+        chats,
+        vec![777],
+        "chats after reopening were '{chats:?}', expected '[777]'"
+    );
 }
