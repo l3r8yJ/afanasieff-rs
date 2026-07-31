@@ -2,9 +2,11 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ master ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ master ]
+  schedule:
+    - cron: '0 6 * * 1'
 
 env:
   CARGO_TERM_COLOR: always
@@ -64,23 +66,14 @@ jobs:
       - run: cargo test --all-features --verbose
 
   coverage:
-    name: Code Coverage - ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
+    name: Code Coverage
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@cargo-tarpaulin
       - uses: Swatinem/rust-cache@v2
-      - name: Generate coverage
-        run: cargo tarpaulin --out Lcov --all-features
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          files: ./lcov.info
-          fail_ci_if_error: false
+      - run: cargo tarpaulin --all-features --exclude-files "src/main.rs" --fail-under 24
 
   docs:
     name: Docs - ${{ matrix.os }}
