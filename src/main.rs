@@ -2,9 +2,11 @@
 #![deny(clippy::await_holding_lock)]
 #![allow(clippy::multiple_crate_versions)]
 
-pub mod cron;
-pub mod ops;
-
+use afanasieff_rs::ops::{
+    matthew::send_random_matthew_quote, stream::send_random_stream_quote,
+    vinograd::send_random_vinograd_quote,
+};
+use afanasieff_rs::{cron, ops};
 use chrono::Utc;
 use teloxide::{
     Bot,
@@ -12,11 +14,6 @@ use teloxide::{
     dptree,
     prelude::Dispatcher,
     types::{Message, Update, UpdateKind},
-};
-
-use crate::ops::{
-    matthew::send_random_matthew_quote, stream::send_random_stream_quote,
-    vinograd::send_random_vinograd_quote,
 };
 
 const FIVE_MINS: f32 = 5.0 * 60.0;
