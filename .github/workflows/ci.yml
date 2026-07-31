@@ -73,7 +73,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@cargo-tarpaulin
       - uses: Swatinem/rust-cache@v2
-      - run: cargo tarpaulin --all-features --exclude-files "src/main.rs" --fail-under 24
+      - run: cargo tarpaulin --all-features --exclude-files "src/main.rs" --fail-under 70
 
   docs:
     name: Docs - ${{ matrix.os }}

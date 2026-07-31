@@ -49,7 +49,7 @@ doc:
     RUSTDOCFLAGS="-D warnings" cargo doc --all-features --no-deps
 
 coverage:
-    cargo tarpaulin --all-features --exclude-files "src/main.rs" --fail-under 24
+    cargo tarpaulin --all-features --exclude-files "src/main.rs" --fail-under 70
 
 audit:
     cargo audit
