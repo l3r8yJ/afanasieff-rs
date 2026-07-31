@@ -29,8 +29,16 @@ async fn send_to_every_chat(bot: &Bot, store: &Store) {
         }
     };
     for id in chats {
-        let Ok(Some(quote)) = store.random_quote(MATTHEW_SOURCE) else {
-            continue;
+        let quote = match store.random_quote(MATTHEW_SOURCE) {
+            Ok(Some(quote)) => quote,
+            Ok(None) => {
+                log::debug!("no quote of source '{MATTHEW_SOURCE}' to send to chat '{id}'");
+                continue;
+            }
+            Err(error) => {
+                log::error!("quote for chat '{id}' was not read: '{error}'");
+                continue;
+            }
         };
         match bot.send_message(ChatId(id), quote).await {
             Ok(_) => log::info!("message sent for id: '{id}'"),
