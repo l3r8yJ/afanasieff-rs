@@ -163,9 +163,9 @@ pub fn migrate(connection: &Connection) -> rusqlite::Result<()> {
 }
 
 impl Store {
-    /// Drops the `quotes` table so a test can force every quote read to fail.
-    /// Not part of the public API: reachable from `tests/` only to prove a
-    /// broken database is reported as an error rather than an empty result.
+    /// Drops the `quotes` table, so a test can force every subsequent quote
+    /// read against this `Store` to fail. Exists for tests only and is not
+    /// part of the intended API.
     ///
     /// # Errors
     ///
