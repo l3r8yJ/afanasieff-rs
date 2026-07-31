@@ -162,6 +162,20 @@ pub fn migrate(connection: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
+impl Store {
+    /// Drops the `quotes` table so a test can force every quote read to fail.
+    /// Not part of the public API: reachable from `tests/` only to prove a
+    /// broken database is reported as an error rather than an empty result.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the drop cannot be executed.
+    #[doc(hidden)]
+    pub fn drop_quotes_table_for_tests(&self) -> rusqlite::Result<()> {
+        self.with(|connection| connection.execute_batch("DROP TABLE quotes"))
+    }
+}
+
 #[cfg(test)]
 impl Store {
     fn quotes_of(&self, source: &str) -> i64 {
