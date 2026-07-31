@@ -27,6 +27,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 
 [dev-dependencies]
 teloxide_tests = "0.4.0"
+tempfile = "3"
 
 [package.metadata.cross.target.x86_64-unknown-linux-musl]
 image = "ghcr.io/cross-rs/x86_64-unknown-linux-musl:latest"

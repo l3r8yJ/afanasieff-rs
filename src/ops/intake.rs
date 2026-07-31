@@ -1,22 +1,25 @@
 use teloxide::types::{Message, Update, UpdateKind};
 
-use crate::ops::store::{MATTHEW_USERNAME, remember_chat, store_matthew_message, with_db};
+use crate::ops::store::{MATTHEW_USERNAME, Store};
 
 const SHORT_MESSAGE_CHARS: usize = 10;
 
 const PREVIEW_CHARS: usize = 60;
 
-pub fn observe(update: Update) {
+pub fn observe(store: &Store, update: Update) {
     let UpdateKind::Message(message) = update.kind else {
         return;
     };
     let chat = message.chat.id.0;
-    with_db(|connection| remember_chat(connection, chat));
+    if let Err(error) = store.remember_chat(chat) {
+        log::error!("chat id: '{chat}' was not remembered: '{error}'");
+        return;
+    }
     log::info!("chat id: '{chat}' remembered");
-    collect_matthew_message(&message, chat);
+    collect_matthew_message(store, &message, chat);
 }
 
-fn collect_matthew_message(message: &Message, chat: i64) {
+fn collect_matthew_message(store: &Store, message: &Message, chat: i64) {
     let id = message.id.0;
     if !is_written_by_matthew(message) {
         log::debug!("message '{id}' in chat '{chat}' is not written by matthew, skipping");
@@ -35,15 +38,17 @@ fn collect_matthew_message(message: &Message, chat: i64) {
         return;
     }
     let sent_at = message.date.to_rfc3339();
-    match with_db(|connection| store_matthew_message(connection, chat, id, &sent_at, text)) {
-        Some(true) => log::info!(
+    match store.store_matthew_message(chat, id, &sent_at, text) {
+        Ok(true) => log::info!(
             "matthew message '{id}' in chat '{chat}' collected: '{}'",
             preview(text)
         ),
-        Some(false) => {
+        Ok(false) => {
             log::info!("matthew message '{id}' in chat '{chat}' was already collected, skipping");
         }
-        None => log::error!("matthew message '{id}' in chat '{chat}' was not collected"),
+        Err(error) => {
+            log::error!("matthew message '{id}' in chat '{chat}' was not collected: '{error}'");
+        }
     }
 }
 
