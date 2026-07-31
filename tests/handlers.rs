@@ -2,8 +2,11 @@ use std::sync::Arc;
 
 use afanasieff_rs::handler_tree;
 use afanasieff_rs::ops::error::Error;
+use afanasieff_rs::ops::matthew::reply_with_quote;
 use afanasieff_rs::ops::store::Store;
-use teloxide::types::ReactionType;
+use teloxide::Bot;
+use teloxide::dispatching::{UpdateFilterExt, UpdateHandler};
+use teloxide::types::{Message, ReactionType, Update};
 use teloxide_tests::mock_bot::DistributionKey;
 use teloxide_tests::{MockBot, MockMessageText};
 
@@ -12,6 +15,18 @@ fn bot_with_store(text: &str) -> MockBot<Error, DistributionKey> {
     let mut bot = MockBot::new(MockMessageText::new().text(text), handler_tree());
     bot.dependencies(teloxide::dptree::deps![store]);
     bot
+}
+
+async fn reply_with_quote_endpoint(
+    bot: Bot,
+    message: Message,
+    store: Arc<Store>,
+) -> Result<(), Error> {
+    reply_with_quote(&bot, &message, &store).await
+}
+
+fn matthew_reply_tree() -> UpdateHandler<Error> {
+    teloxide::dptree::entry().branch(Update::filter_message().endpoint(reply_with_quote_endpoint))
 }
 
 #[tokio::test]
@@ -102,5 +117,35 @@ async fn stays_quiet_when_the_quotes_table_is_gone() {
     assert!(
         queried.is_err(),
         "querying a dropped quotes table returned '{queried:?}', expected an error rather than an empty result"
+    );
+}
+
+#[tokio::test]
+async fn reply_with_quote_sends_a_matthew_quote_with_a_broken_heart_reaction() {
+    let store = Arc::new(Store::in_memory().unwrap());
+    let mut bot = MockBot::new(MockMessageText::new().text("matthew"), matthew_reply_tree());
+    bot.dependencies(teloxide::dptree::deps![store]);
+    bot.dispatch().await;
+    let responses = bot.get_responses();
+    assert_eq!(
+        responses.sent_messages.len(),
+        1,
+        "sent messages count was '{}', expected one reply",
+        responses.sent_messages.len()
+    );
+    let reaction = responses
+        .set_message_reaction
+        .last()
+        .expect("a reaction is set")
+        .reaction
+        .clone()
+        .expect("the reaction list is present");
+    assert_eq!(
+        reaction[0],
+        ReactionType::Emoji {
+            emoji: "💔".to_string()
+        },
+        "matthew reaction was '{:?}', expected the broken heart emoji",
+        reaction[0]
     );
 }
