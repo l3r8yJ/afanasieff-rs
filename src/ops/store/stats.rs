@@ -116,23 +116,6 @@ impl Store {
         })
     }
 
-    /// Returns the member's first name.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the query cannot be executed.
-    pub fn member_name(&self, chat: i64, user: i64) -> rusqlite::Result<Option<String>> {
-        self.with(|connection| {
-            connection
-                .query_row(
-                    "SELECT first_name FROM members WHERE chat_id = ?1 AND user_id = ?2",
-                    params![chat, user],
-                    |row| row.get(0),
-                )
-                .optional()
-        })
-    }
-
     /// Returns every state value of the chat.
     ///
     /// # Errors
@@ -317,12 +300,12 @@ mod tests {
             .upsert_member(42, 7, Some("new"), "Матвей А", "2026-08-06T11:00:00Z")
             .unwrap();
         let by_old = store.member_by_username(42, "old").unwrap();
-        let name = store.member_name(42, 7).unwrap();
+        let by_new = store.member_by_username(42, "new").unwrap();
         assert_eq!(
-            (by_old, name.as_deref()),
-            (None, Some("Матвей А")),
-            "member after the second upsert resolved to '{:?}', expected the new username and name",
-            (by_old, name.as_deref())
+            (by_old, by_new),
+            (None, Some(7)),
+            "member after the second upsert resolved to '{:?}', expected the old username gone and the new one resolving to '7'",
+            (by_old, by_new)
         );
     }
 
