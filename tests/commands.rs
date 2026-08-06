@@ -56,6 +56,16 @@ async fn falls_through_to_the_quote_branch_when_text_merely_mentions_achievement
 }
 
 #[tokio::test]
+async fn joins_the_header_and_the_locked_list_with_a_single_blank_line_when_nothing_is_owned() {
+    let store = Arc::new(Store::in_memory().unwrap());
+    let answer = answer_of("/my_achievements", &store).await;
+    assert!(
+        !answer.contains("\n\n\n"),
+        "personal answer with nothing owned was '{answer}', expected no run of more than one blank line"
+    );
+}
+
+#[tokio::test]
 async fn orders_locked_achievements_by_closeness_to_their_threshold_with_the_meta_one_last() {
     let store = Arc::new(Store::in_memory().unwrap());
     store

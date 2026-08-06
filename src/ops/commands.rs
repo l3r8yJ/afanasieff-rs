@@ -76,14 +76,17 @@ fn personal(message: &Message, store: &Store) -> String {
             None => format!("🔒 {}", achievement.title()),
         })
         .collect::<Vec<String>>();
-    format!(
-        "🏆 {} — {}/{}\n\n{}\n\n{}",
+    let header = format!(
+        "🏆 {} — {}/{}",
         author.first_name,
         owned.len(),
-        Achievement::ALL.len(),
-        unlocked.join("\n"),
-        locked.join("\n")
-    )
+        Achievement::ALL.len()
+    );
+    [header, unlocked.join("\n"), locked.join("\n")]
+        .into_iter()
+        .filter(|section| !section.is_empty())
+        .collect::<Vec<String>>()
+        .join("\n\n")
 }
 
 fn share(progress: Option<(i64, i64)>) -> f64 {
