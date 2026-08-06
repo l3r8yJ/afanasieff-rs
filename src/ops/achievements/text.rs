@@ -80,7 +80,7 @@ mod tests {
     }
 
     #[test]
-    fn collapses_repeated_letters_into_two() {
+    fn collapses_repeated_letters_into_one() {
         let collapsed = tokens("хуууууй");
         assert_eq!(
             collapsed,
