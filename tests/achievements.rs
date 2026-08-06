@@ -112,6 +112,22 @@ fn counts_a_message_once_per_message_id() {
 }
 
 #[test]
+fn skips_a_message_whose_id_is_lower_than_the_last_processed_one() {
+    let store = Store::in_memory().unwrap();
+    let first = event_of("терпим", 7, 5);
+    let earlier = event_of("терпим", 7, 3);
+    apply(&store, &first).unwrap();
+    let counted_earlier = apply(&store, &earlier).unwrap();
+    let counted = store.stat(first.chat, first.user, "messages").unwrap();
+    assert_eq!(
+        (counted_earlier, counted),
+        (false, 1),
+        "applying an earlier-id message reported '{:?}', expected it rejected and 'messages' left at '1'",
+        (counted_earlier, counted)
+    );
+}
+
+#[test]
 fn grows_the_unanswered_streak_until_someone_replies() {
     let store = Store::in_memory().unwrap();
     let mut chat = 0;

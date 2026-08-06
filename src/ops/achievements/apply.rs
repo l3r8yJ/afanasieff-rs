@@ -26,7 +26,6 @@ pub fn apply(store: &Store, event: &Event) -> rusqlite::Result<bool> {
     if i64::from(event.message_id) <= seen {
         return Ok(false);
     }
-    store.set_state(event.chat, "last_message_id", i64::from(event.message_id))?;
     store.upsert_member(
         event.chat,
         event.user,
@@ -43,6 +42,7 @@ pub fn apply(store: &Store, event: &Event) -> rusqlite::Result<bool> {
     settle_monologue(store, event, &state)?;
     settle_chain(store, event, &state)?;
     count_mentions(store, event)?;
+    store.set_state(event.chat, "last_message_id", i64::from(event.message_id))?;
     Ok(true)
 }
 
