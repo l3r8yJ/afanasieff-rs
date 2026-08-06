@@ -12,7 +12,9 @@ use crate::ops::store::Store;
 #[derive(BotCommands, Clone)]
 #[command(rename_rule = "snake_case")]
 pub enum Command {
+    #[command(description = "все ачивки и за что их дают")]
     Achievements,
+    #[command(description = "что открыто у тебя, а что нет")]
     MyAchievements,
 }
 
