@@ -1,4 +1,6 @@
+use afanasieff_rs::ops::achievements::apply::apply;
 use afanasieff_rs::ops::achievements::event::{Event, Mention};
+use afanasieff_rs::ops::store::Store;
 use chrono::{TimeZone, Utc};
 use teloxide::types::{MessageEntity, MessageEntityKind, Update, UpdateId, UpdateKind, User};
 use teloxide_tests::{MockMessageText, MockUser};
@@ -15,6 +17,15 @@ fn user(id: u64, username: &str) -> User {
         .id(id)
         .username(username.to_string())
         .build()
+}
+
+fn event_of(text: &str, author: u64, message_id: i32) -> Event {
+    let message = MockMessageText::new()
+        .text(text)
+        .from(user(author, "matthew"))
+        .id(message_id)
+        .build();
+    Event::parse(&update_of(message)).expect("the message parses into an event")
 }
 
 #[test]
@@ -79,5 +90,65 @@ fn collects_mentions_by_username_and_by_id() {
         vec![Mention::Username("stream".to_string())],
         "mentions were '{:?}', expected one username mention",
         event.mentions
+    );
+}
+
+#[test]
+fn counts_a_message_once_per_message_id() {
+    let store = Store::in_memory().unwrap();
+    let event = event_of("терпим", 7, 5);
+    let first = apply(&store, &event).unwrap();
+    let again = apply(&store, &event).unwrap();
+    let counted = store.stat(event.chat, event.user, "messages").unwrap();
+    assert_eq!(
+        (first, again, counted),
+        (true, false, 1),
+        "applying the same message twice reported '{:?}', expected it counted once",
+        (first, again, counted)
+    );
+}
+
+#[test]
+fn grows_the_unanswered_streak_until_someone_replies() {
+    let store = Store::in_memory().unwrap();
+    let mut chat = 0;
+    for id in 1..=3 {
+        let event = event_of("ну че вы", 7, id);
+        chat = event.chat;
+        apply(&store, &event).unwrap();
+    }
+    let grown = store.stat(chat, 7, "unanswered_streak").unwrap();
+    let replied_to = MockMessageText::new()
+        .text("терпим")
+        .from(user(7, "matthew"))
+        .build();
+    let reply = MockMessageText::new()
+        .text("да понял я")
+        .from(user(8, "stream"))
+        .id(4)
+        .reply_to_message(replied_to)
+        .build();
+    apply(&store, &Event::parse(&update_of(reply)).unwrap()).unwrap();
+    let reset = store.stat(chat, 7, "unanswered_streak").unwrap();
+    assert_eq!(
+        (grown, reset),
+        (3, 0),
+        "streak was '{grown}' before the reply and '{reset}' after, expected '3' then '0'"
+    );
+}
+
+#[test]
+fn counts_a_monologue_of_five_messages() {
+    let store = Store::in_memory().unwrap();
+    let mut chat = 0;
+    for id in 1..=5 {
+        let event = event_of("говорю сам с собой", 7, id);
+        chat = event.chat;
+        apply(&store, &event).unwrap();
+    }
+    let monologues = store.stat(chat, 7, "monologues").unwrap();
+    assert_eq!(
+        monologues, 1,
+        "monologues after five messages in a row were '{monologues}', expected '1'"
     );
 }
