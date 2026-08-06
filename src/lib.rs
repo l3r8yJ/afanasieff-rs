@@ -21,7 +21,8 @@ pub mod ops;
 
 const FIVE_MINS: f32 = 5.0 * 60.0;
 
-/// Returns the dispatcher tree: it records every incoming chat, drops
+/// Returns the dispatcher tree: it records every incoming chat, counts
+/// achievement progress and announces newly earned achievements, drops
 /// messages older than five minutes, and replies with a random quote on
 /// the stream, matthew or vinograd keyword branches.
 pub fn handler_tree() -> UpdateHandler<Error> {

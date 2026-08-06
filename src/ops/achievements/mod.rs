@@ -85,7 +85,7 @@ async fn award(bot: &Bot, store: &Store, event: &Event, achievement: Achievement
     }
     let mention = user_mention(
         UserId(u64::try_from(event.user).unwrap_or_default()),
-        &escape(&event.first_name),
+        &event.first_name,
     );
     let text = format!(
         "🏆 {mention} — «{}»\n{}",

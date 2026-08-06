@@ -22,6 +22,14 @@ fn user(id: u64, username: &str) -> User {
         .build()
 }
 
+fn user_named(id: u64, username: &str, first_name: &str) -> User {
+    MockUser::new()
+        .id(id)
+        .username(username.to_string())
+        .first_name(first_name.to_string())
+        .build()
+}
+
 fn event_of(text: &str, author: u64, message_id: i32) -> Event {
     let message = MockMessageText::new()
         .text(text)
@@ -200,5 +208,39 @@ async fn announces_the_streak_achievement_once() {
     assert_eq!(
         announced, 1,
         "the streak achievement was announced '{announced}' times, expected exactly one"
+    );
+}
+
+#[tokio::test]
+async fn escapes_html_special_characters_in_the_announced_display_name() {
+    let store = Arc::new(Store::in_memory().unwrap());
+    let mut announcement = None;
+    for id in 1..=10 {
+        let mut bot = MockBot::new(
+            MockMessageText::new()
+                .text("ну и ладно")
+                .from(user_named(7, "matthew", "Ма<b>твей & Co"))
+                .id(id),
+            handler_tree(),
+        );
+        bot.dependencies(teloxide::dptree::deps![Arc::clone(&store)]);
+        bot.dispatch().await;
+        announcement = announcement.or_else(|| {
+            bot.get_responses()
+                .sent_messages
+                .iter()
+                .find_map(|message| message.text().map(str::to_string))
+                .filter(|text| text.contains("Тебе никто не ответил"))
+        });
+    }
+    let announcement =
+        announcement.expect("the streak achievement was announced once across the ten messages");
+    assert!(
+        announcement.contains("Ма&lt;b&gt;твей &amp; Co"),
+        "announcement was '{announcement}', expected the escaped display name 'Ма&lt;b&gt;твей &amp; Co'"
+    );
+    assert!(
+        !announcement.contains("<b>твей"),
+        "announcement was '{announcement}', expected no raw '<b>' tag to survive escaping"
     );
 }
