@@ -2,12 +2,18 @@ use std::sync::Arc;
 
 use teloxide::Bot;
 use teloxide::macros::BotCommands;
+use teloxide::payloads::SendMessageSetters;
 use teloxide::prelude::Requester;
-use teloxide::types::Message;
+use teloxide::types::{Message, ParseMode};
+use teloxide::utils::html::escape;
 
 use crate::ops::achievements::rules::{Achievement, Stats};
 use crate::ops::error::Error;
 use crate::ops::store::Store;
+
+const BAR_CELLS: i64 = 10;
+
+const BAR_CELLS_USIZE: usize = 10;
 
 #[derive(BotCommands, Clone)]
 #[command(rename_rule = "snake_case")]
@@ -33,17 +39,28 @@ pub async fn answer(
         Command::Achievements => catalogue(),
         Command::MyAchievements => personal(&message, &store),
     };
-    bot.send_message(message.chat.id, text).await?;
+    bot.send_message(message.chat.id, text)
+        .parse_mode(ParseMode::Html)
+        .await?;
     Ok(())
 }
 
 fn catalogue() -> String {
     let lines = Achievement::ALL
         .iter()
-        .map(|achievement| format!("{} — {}", achievement.title(), achievement.hint()))
+        .map(|achievement| {
+            format!(
+                "🏅 <b>{}</b>\n     <i>{}</i>",
+                escape(achievement.title()),
+                escape(achievement.hint())
+            )
+        })
         .collect::<Vec<String>>()
-        .join("\n");
-    format!("Ачивки, {} штук\n\n{lines}", Achievement::ALL.len())
+        .join("\n\n");
+    format!(
+        "🏆 <b>Ачивки</b> · всего {}\n\n{lines}",
+        Achievement::ALL.len()
+    )
 }
 
 fn personal(message: &Message, store: &Store) -> String {
@@ -63,7 +80,11 @@ fn personal(message: &Message, store: &Store) -> String {
                 .ok()
                 .flatten()
                 .unwrap_or_default();
-            unlocked.push(format!("🏆 {} · {}", achievement.title(), day_of(&at)));
+            unlocked.push(format!(
+                "🏅 <b>{}</b> · <i>{}</i>",
+                escape(achievement.title()),
+                day_of(&at)
+            ));
         } else {
             locked.push((achievement, achievement.progress(&stats)));
         }
@@ -72,23 +93,40 @@ fn personal(message: &Message, store: &Store) -> String {
     let locked = locked
         .iter()
         .map(|(achievement, progress)| match progress {
-            Some((current, threshold)) => {
-                format!("🔒 {} · {current}/{threshold}", achievement.title())
-            }
-            None => format!("🔒 {}", achievement.title()),
+            Some((current, threshold)) => format!(
+                "🔒 <b>{}</b>\n     {} <code>{current}/{threshold}</code>",
+                escape(achievement.title()),
+                bar(*current, *threshold)
+            ),
+            None => format!("🔒 <b>{}</b>", escape(achievement.title())),
         })
         .collect::<Vec<String>>();
     let header = format!(
-        "🏆 {} — {}/{}",
-        author.first_name,
+        "🏆 <b>{}</b> · {} из {}\n{}",
+        escape(&author.first_name),
         owned.len(),
-        Achievement::ALL.len()
+        Achievement::ALL.len(),
+        bar(
+            i64::try_from(owned.len()).unwrap_or(i64::MAX),
+            i64::try_from(Achievement::ALL.len()).unwrap_or(i64::MAX)
+        )
     );
     [header, unlocked.join("\n"), locked.join("\n")]
         .into_iter()
         .filter(|section| !section.is_empty())
         .collect::<Vec<String>>()
         .join("\n\n")
+}
+
+fn bar(current: i64, threshold: i64) -> String {
+    let scale = threshold.max(1);
+    let reached = (current.max(0).saturating_mul(BAR_CELLS) + scale / 2) / scale;
+    let filled = usize::try_from(reached).unwrap_or(0).min(BAR_CELLS_USIZE);
+    format!(
+        "{}{}",
+        "▰".repeat(filled),
+        "▱".repeat(BAR_CELLS_USIZE - filled)
+    )
 }
 
 fn share(progress: Option<(i64, i64)>) -> f64 {
