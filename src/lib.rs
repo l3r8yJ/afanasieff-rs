@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use chrono::Utc;
 use teloxide::Bot;
-use teloxide::dispatching::{UpdateFilterExt, UpdateHandler};
+use teloxide::dispatching::{HandlerExt, UpdateFilterExt, UpdateHandler};
 use teloxide::dptree;
 use teloxide::types::{Message, Update, UpdateKind};
 
@@ -23,8 +23,9 @@ const FIVE_MINS: f32 = 5.0 * 60.0;
 
 /// Returns the dispatcher tree: it records every incoming chat, counts
 /// achievement progress and announces newly earned achievements, drops
-/// messages older than five minutes, and replies with a random quote on
-/// the stream, matthew or vinograd keyword branches.
+/// messages older than five minutes, answers the achievement commands, and
+/// replies with a random quote on the stream, matthew or vinograd keyword
+/// branches.
 pub fn handler_tree() -> UpdateHandler<Error> {
     dptree::entry()
         .inspect(|update: Update, store: Arc<Store>| ops::intake::observe(&store, update))
@@ -43,6 +44,11 @@ pub fn handler_tree() -> UpdateHandler<Error> {
             }
             _ => false,
         })
+        .branch(
+            Update::filter_message()
+                .filter_command::<ops::commands::Command>()
+                .endpoint(ops::commands::answer),
+        )
         .branch(
             Update::filter_message()
                 .filter(|m: Message| ops::stream::filter(&m))
