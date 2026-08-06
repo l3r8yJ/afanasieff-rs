@@ -182,6 +182,60 @@ fn counts_a_monologue_of_five_messages() {
 }
 
 #[test]
+fn counts_an_unanswered_call_when_someone_else_answers_after_the_timeout() {
+    let store = Store::in_memory().unwrap();
+    let call = MockMessageText::new()
+        .text("го в доту")
+        .from(user(7, "matthew"))
+        .id(1)
+        .date(Utc.with_ymd_and_hms(2026, 8, 6, 12, 0, 0).unwrap())
+        .build();
+    let call_event = Event::parse(&update_of(call)).unwrap();
+    apply(&store, &call_event).unwrap();
+    let late_reply = MockMessageText::new()
+        .text("да я занят")
+        .from(user(8, "stream"))
+        .id(2)
+        .date(Utc.with_ymd_and_hms(2026, 8, 6, 12, 11, 0).unwrap())
+        .build();
+    apply(&store, &Event::parse(&update_of(late_reply)).unwrap()).unwrap();
+    let unanswered = store
+        .stat(call_event.chat, call_event.user, "unanswered_calls")
+        .unwrap();
+    assert_eq!(
+        unanswered, 1,
+        "unanswered calls after a late reply from someone else were '{unanswered}', expected '1'"
+    );
+}
+
+#[test]
+fn does_not_count_a_call_answered_by_someone_else_within_the_timeout() {
+    let store = Store::in_memory().unwrap();
+    let call = MockMessageText::new()
+        .text("го в доту")
+        .from(user(7, "matthew"))
+        .id(1)
+        .date(Utc.with_ymd_and_hms(2026, 8, 6, 12, 0, 0).unwrap())
+        .build();
+    let call_event = Event::parse(&update_of(call)).unwrap();
+    apply(&store, &call_event).unwrap();
+    let quick_reply = MockMessageText::new()
+        .text("да я занят")
+        .from(user(8, "stream"))
+        .id(2)
+        .date(Utc.with_ymd_and_hms(2026, 8, 6, 12, 5, 0).unwrap())
+        .build();
+    apply(&store, &Event::parse(&update_of(quick_reply)).unwrap()).unwrap();
+    let unanswered = store
+        .stat(call_event.chat, call_event.user, "unanswered_calls")
+        .unwrap();
+    assert_eq!(
+        unanswered, 0,
+        "unanswered calls after a timely reply from someone else were '{unanswered}', expected '0'"
+    );
+}
+
+#[test]
 fn counts_a_quote_the_bot_sent_to_a_member() {
     let store = Store::in_memory().unwrap();
     let message = MockMessageText::new()

@@ -129,12 +129,10 @@ fn settle_call(store: &Store, event: &Event, state: &HashMap<String, i64>) -> ru
     let caller = state.get("call_by").copied().unwrap_or_default();
     let called_at = state.get("call_at").copied().unwrap_or_default();
     if caller != 0 {
-        if caller == event.user {
-            if now - called_at > CALL_TIMEOUT_SECONDS {
-                store.bump(event.chat, caller, "unanswered_calls", 1)?;
-                store.set_state(event.chat, "call_by", 0)?;
-            }
-        } else {
+        if now - called_at > CALL_TIMEOUT_SECONDS {
+            store.bump(event.chat, caller, "unanswered_calls", 1)?;
+            store.set_state(event.chat, "call_by", 0)?;
+        } else if caller != event.user {
             store.set_state(event.chat, "call_by", 0)?;
         }
     }
