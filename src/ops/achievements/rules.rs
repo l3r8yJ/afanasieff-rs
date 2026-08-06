@@ -225,7 +225,7 @@ pub fn unlocked(stats: &Stats, owned: &HashSet<String>) -> Vec<Achievement> {
 mod tests {
     use std::collections::{HashMap, HashSet};
 
-    use super::{Achievement, Stats, unlocked};
+    use super::{Achievement, PETUKH_ACHIEVEMENTS, Stats, unlocked};
 
     fn stats(pairs: &[(&str, i64)]) -> Stats {
         Stats::new(
@@ -301,6 +301,64 @@ mod tests {
             "mention unlock reported '{:?}', expected 'ivanchuk'",
             given.first().map(Achievement::code)
         );
+    }
+
+    enum Fixture {
+        Counter(&'static str),
+        Owned,
+    }
+
+    #[test]
+    fn unlocks_every_achievement_at_exactly_its_own_threshold() {
+        let cases: &[(Achievement, Fixture)] = &[
+            (Achievement::Terpim, Fixture::Counter("unanswered_streak")),
+            (Achievement::Opravdan, Fixture::Counter("apologies")),
+            (Achievement::OdinNaOdin, Fixture::Counter("chain_len")),
+            (Achievement::Shorty, Fixture::Counter("longest_message")),
+            (Achievement::Potolok, Fixture::Counter("night_messages")),
+            (Achievement::Belogvardeec, Fixture::Counter("politics")),
+            (Achievement::Vpn, Fixture::Counter("ignored_pings")),
+            (Achievement::Gavnil, Fixture::Counter("bot_replies")),
+            (Achievement::Lysina, Fixture::Counter("vinograd_mentions")),
+            (Achievement::SsalStream, Fixture::Counter("stream_mentions")),
+            (Achievement::Haha, Fixture::Counter("laugh_only")),
+            (Achievement::Robot, Fixture::Counter("replies_to_bot")),
+            (
+                Achievement::VseZanyaty,
+                Fixture::Counter("unanswered_calls"),
+            ),
+            (Achievement::Klon, Fixture::Counter("monologues")),
+            (Achievement::Ivanchuk, Fixture::Counter("mention:1")),
+            (Achievement::Sofizm, Fixture::Counter("long_messages")),
+            (Achievement::Petukh, Fixture::Owned),
+        ];
+        for (achievement, fixture) in cases {
+            let given = match fixture {
+                Fixture::Counter(key) => {
+                    let threshold = achievement
+                        .progress(&Stats::new(HashMap::new()))
+                        .expect("a counter achievement reports its own threshold")
+                        .1;
+                    unlocked(&stats(&[(*key, threshold)]), &HashSet::new())
+                }
+                Fixture::Owned => {
+                    let owned = Achievement::ALL
+                        .iter()
+                        .filter(|other| other.code() != achievement.code())
+                        .take(PETUKH_ACHIEVEMENTS)
+                        .map(|other| other.code().to_string())
+                        .collect::<HashSet<String>>();
+                    unlocked(&stats(&[]), &owned)
+                }
+            };
+            assert_eq!(
+                given.first().map(Achievement::code),
+                Some(achievement.code()),
+                "unlocking '{}' at its threshold reported '{:?}', expected it unlocked",
+                achievement.code(),
+                given.first().map(Achievement::code)
+            );
+        }
     }
 
     #[test]
