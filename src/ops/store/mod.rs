@@ -5,7 +5,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 
 pub const MATTHEW_USERNAME: &str = "MatthewAFN";
 
-const MIGRATIONS: &[&str] = &[include_str!("../../migrations/0001_init.sql")];
+const MIGRATIONS: &[&str] = &[include_str!("../../../migrations/0001_init.sql")];
 
 pub struct Store {
     connection: Mutex<Connection>,
