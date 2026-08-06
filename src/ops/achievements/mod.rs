@@ -38,6 +38,19 @@ pub async fn track_and_award(bot: &Bot, store: &Store, update: &Update) {
             return;
         }
     }
+    log::debug!(
+        "message '{}' in chat '{}' by '{}': mat '{}', apology '{}', politics '{}', \
+         laugh '{}', call '{}', len '{}'",
+        event.message_id,
+        event.chat,
+        event.user,
+        event.mat,
+        event.apology,
+        event.politics,
+        event.laugh_only,
+        event.call_to_play,
+        event.len
+    );
     for achievement in earned(store, &event) {
         award(bot, store, &event, achievement).await;
     }

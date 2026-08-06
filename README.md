@@ -13,6 +13,13 @@ at the chat.
 - **Learns from the chat.** Messages worth remembering are picked up as they
   arrive and gradually become part of the quote pool, so the bot's material
   grows with the conversation.
+- **Hands out achievements.** It counts how people behave in the chat — night
+  posting, monologues, unanswered calls, who tags whom — and drops an
+  achievement as a reply the moment one is earned, in Matthew's own voice.
+  `/achievements` lists all seventeen with their conditions, `/my_achievements`
+  shows what the caller has unlocked and what is still locked. Counters start
+  from zero when the bot first runs this version; there is no history behind
+  them.
 
 ## Quote sources
 
