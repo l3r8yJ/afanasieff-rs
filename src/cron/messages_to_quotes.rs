@@ -1,34 +1,36 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use rand::{rng, seq::IndexedRandom};
 use tokio::time::sleep;
+use tokio_util::sync::CancellationToken;
 
-use crate::ops::{
-    consts::SOURCES,
-    intake::preview,
-    store::{promote_oldest_matthew_message, with_db},
-};
+use crate::ops::{consts::SOURCES, intake::preview, store::Store};
 
 const TICK: Duration = Duration::from_secs(30);
 
-pub async fn start_promoting() {
+pub async fn start_promoting(store: Arc<Store>, shutdown: CancellationToken) {
     loop {
-        promote_one_message();
-        sleep(TICK).await;
+        tokio::select! {
+            () = shutdown.cancelled() => break,
+            () = sleep(TICK) => promote_one_message(&store),
+        }
     }
 }
 
-fn promote_one_message() {
+fn promote_one_message(store: &Store) {
     let Some(source) = random_source() else {
         return;
     };
-    match with_db(|connection| promote_oldest_matthew_message(connection, source)) {
-        Some(Some(text)) => log::info!(
+    match store.promote_oldest_matthew_message(source) {
+        Ok(Some(text)) => log::info!(
             "matthew message promoted into quotes of source '{source}': '{}'",
             preview(&text)
         ),
-        Some(None) => log::debug!("no matthew messages waiting to be promoted"),
-        None => log::error!("matthew message was not promoted into source '{source}'"),
+        Ok(None) => log::debug!("no matthew messages waiting to be promoted"),
+        Err(error) => {
+            log::error!("matthew message was not promoted into source '{source}': '{error}'");
+        }
     }
 }
 

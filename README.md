@@ -13,6 +13,13 @@ at the chat.
 - **Learns from the chat.** Messages worth remembering are picked up as they
   arrive and gradually become part of the quote pool, so the bot's material
   grows with the conversation.
+- **Hands out achievements.** It counts how people behave in the chat — night
+  posting, monologues, unanswered calls, who tags whom — and drops an
+  achievement as a reply the moment one is earned, in Matthew's own voice.
+  `/achievements` lists all seventeen with their conditions, `/my_achievements`
+  shows what the caller has unlocked and what is still locked. Counters start
+  from zero when the bot first runs this version; there is no history behind
+  them.
 
 ## Quote sources
 
@@ -30,7 +37,7 @@ just setup-env
 That brings in everything the repo needs — a C toolchain and `perl` for the
 dependencies that build from source, the Rust toolchain with `rustfmt` and
 `clippy`, `sqlite3`, and the extra tools some recipes call (`cargo-audit`,
-`rainfrog`). It knows `pacman`, `apt`, `dnf` and `brew`, and asks for `sudo`
+`cargo-tarpaulin`, `rainfrog`). It knows `pacman`, `apt`, `dnf` and `brew`, and asks for `sudo`
 where the package manager needs it.
 
 The one thing it cannot fetch for you is a Telegram bot token: get one from
@@ -52,6 +59,7 @@ Every routine task goes through [`just`](https://github.com/casey/just) — the
 | `just check` | Formatting, lints, tests and docs |
 | `just build` | Release build |
 | `just deploy` | Check, build and restart |
+| `just coverage` | Test coverage against the 70% floor |
 | `just audit` | Dependency vulnerability scan |
 | `just logs` | Follow the running service's logs |
 | `just db` / `just db-tui` | Open the quote database in a shell or a TUI |

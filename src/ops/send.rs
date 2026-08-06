@@ -2,10 +2,7 @@ use teloxide::payloads::SetMessageReactionSetters;
 use teloxide::prelude::Requester;
 use teloxide::sugar::request::RequestReplyExt;
 use teloxide::types::ReactionType;
-use teloxide::{
-    Bot,
-    types::{Me, Message},
-};
+use teloxide::{Bot, types::Message};
 
 /// Replies to given message and set reaction on it.
 pub async fn send_reply_message_set_reaction(
@@ -13,7 +10,6 @@ pub async fn send_reply_message_set_reaction(
     emoji: &str,
     bot: &Bot,
     message: &Message,
-    _: &Me,
 ) {
     let (message, reaction) = tokio::join!(
         bot.send_message(message.chat.id, text).reply_to(message.id),

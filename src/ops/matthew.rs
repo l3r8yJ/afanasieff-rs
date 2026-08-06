@@ -1,15 +1,15 @@
+use std::sync::Arc;
+
 use rand::{Rng, rng};
-use teloxide::{
-    Bot,
-    types::{Me, Message},
-};
+use teloxide::{Bot, types::Message};
 
 use crate::ops::{
+    achievements::record_bot_reply,
     consts::{MATTHEW_KEYWORD, MATTHEW_SOURCE},
     error::Error,
     predicates::contains_ignore_case,
     send::send_reply_message_set_reaction,
-    store::{random_quote, with_db},
+    store::Store,
 };
 
 #[must_use]
@@ -17,23 +17,36 @@ pub fn filter(msg: &Message) -> bool {
     contains_ignore_case(msg, MATTHEW_KEYWORD)
 }
 
-/// Send random quote with 30% chance.
+/// Sends a random matthew quote with a 30% chance.
 ///
 /// # Errors
 ///
-/// This function will return an error if message text was empty.
-pub async fn send_random_matthew_quote(bot: Bot, message: Message, me: Me) -> Result<(), Error> {
-    if should_reply()
-        && let Some(quote) =
-            with_db(|connection| random_quote(connection, MATTHEW_SOURCE)).flatten()
-    {
-        send_reply_message_set_reaction(&quote, "💔", &bot, &message, &me).await;
+/// Returns an error when the quote cannot be read from the store.
+pub async fn send_random_matthew_quote(
+    bot: Bot,
+    message: Message,
+    store: Arc<Store>,
+) -> Result<(), Error> {
+    if should_reply() {
+        reply_with_quote(&bot, &message, &store).await?;
     }
     Ok(())
 }
 
-/// Return true with 30% chance.
+/// Sends a random matthew quote unconditionally.
+///
+/// # Errors
+///
+/// Returns an error when the quote cannot be read from the store.
+pub async fn reply_with_quote(bot: &Bot, message: &Message, store: &Store) -> Result<(), Error> {
+    if let Some(quote) = store.random_quote(MATTHEW_SOURCE)? {
+        send_reply_message_set_reaction(&quote, "💔", bot, message).await;
+        record_bot_reply(store, message);
+    }
+    Ok(())
+}
+
 fn should_reply() -> bool {
     let mut rng = rng();
-    rng.random_bool(0.3) // 30% chance for reply (as irl)
+    rng.random_bool(0.3)
 }

@@ -1,29 +1,49 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use rand::{Rng, rng};
 use teloxide::{Bot, prelude::Requester, types::ChatId};
 use tokio::time::sleep;
+use tokio_util::sync::CancellationToken;
 
-use crate::ops::{
-    consts::MATTHEW_SOURCE,
-    store::{chats, random_quote, with_db},
-};
+use crate::ops::{consts::MATTHEW_SOURCE, store::Store};
 
-pub async fn start_cron(bot: Bot) {
+pub async fn start_cron(bot: Bot, store: Arc<Store>, shutdown: CancellationToken) {
     loop {
-        log::info!("iterating over hour");
-        for id in with_db(chats).unwrap_or_default() {
-            let bot = bot.clone();
-            tokio::spawn(async move {
-                if let Some(quote) =
-                    with_db(|connection| random_quote(connection, MATTHEW_SOURCE)).flatten()
-                {
-                    let _ = bot.send_message(ChatId(id), quote).await;
-                    log::info!("message sent for id: '{id}'");
-                }
-            });
+        tokio::select! {
+            () = shutdown.cancelled() => break,
+            () = sleep(Duration::from_mins(random_minutes_count())) => {
+                log::info!("iterating over hour");
+                send_to_every_chat(&bot, &store).await;
+            }
         }
-        sleep(Duration::from_mins(random_minutes_count())).await;
+    }
+}
+
+async fn send_to_every_chat(bot: &Bot, store: &Store) {
+    let chats = match store.chats() {
+        Ok(chats) => chats,
+        Err(error) => {
+            log::error!("chats were not read: '{error}'");
+            return;
+        }
+    };
+    for id in chats {
+        let quote = match store.random_quote(MATTHEW_SOURCE) {
+            Ok(Some(quote)) => quote,
+            Ok(None) => {
+                log::debug!("no quote of source '{MATTHEW_SOURCE}' to send to chat '{id}'");
+                continue;
+            }
+            Err(error) => {
+                log::error!("quote for chat '{id}' was not read: '{error}'");
+                continue;
+            }
+        };
+        match bot.send_message(ChatId(id), quote).await {
+            Ok(_) => log::info!("message sent for id: '{id}'"),
+            Err(error) => log::error!("message for id '{id}' failed: '{error}'"),
+        }
     }
 }
 

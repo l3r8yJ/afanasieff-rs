@@ -1,0 +1,368 @@
+use std::collections::{HashMap, HashSet};
+
+use rusqlite::{OptionalExtension, params};
+
+use crate::ops::store::Store;
+
+impl Store {
+    /// Adds `by` to the counter and returns its new value.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the statement cannot be executed.
+    pub fn bump(&self, chat: i64, user: i64, key: &str, by: i64) -> rusqlite::Result<i64> {
+        self.with(|connection| {
+            connection.query_row(
+                "INSERT INTO member_stats (chat_id, user_id, key, value) VALUES (?1, ?2, ?3, ?4) \
+                 ON CONFLICT(chat_id, user_id, key) DO UPDATE SET value = value + ?4 \
+                 RETURNING value",
+                params![chat, user, key, by],
+                |row| row.get(0),
+            )
+        })
+    }
+
+    /// Sets the counter to the given value.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the statement cannot be executed.
+    pub fn set_stat(&self, chat: i64, user: i64, key: &str, value: i64) -> rusqlite::Result<()> {
+        self.with(|connection| {
+            connection.execute(
+                "INSERT INTO member_stats (chat_id, user_id, key, value) VALUES (?1, ?2, ?3, ?4) \
+                 ON CONFLICT(chat_id, user_id, key) DO UPDATE SET value = ?4",
+                params![chat, user, key, value],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Returns the counter, or zero when it was never set.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn stat(&self, chat: i64, user: i64, key: &str) -> rusqlite::Result<i64> {
+        self.with(|connection| {
+            connection
+                .query_row(
+                    "SELECT value FROM member_stats WHERE chat_id = ?1 AND user_id = ?2 AND key = ?3",
+                    params![chat, user, key],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map(Option::unwrap_or_default)
+        })
+    }
+
+    /// Returns every counter of the given member.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn stats(&self, chat: i64, user: i64) -> rusqlite::Result<HashMap<String, i64>> {
+        self.with(|connection| {
+            let mut statement = connection.prepare(
+                "SELECT key, value FROM member_stats WHERE chat_id = ?1 AND user_id = ?2",
+            )?;
+            let rows = statement
+                .query_map(params![chat, user], |row| Ok((row.get(0)?, row.get(1)?)))?
+                .collect::<rusqlite::Result<HashMap<String, i64>>>()?;
+            Ok(rows)
+        })
+    }
+
+    /// Records the member, refreshing their name and username when already known.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the statement cannot be executed.
+    pub fn upsert_member(
+        &self,
+        chat: i64,
+        user: i64,
+        username: Option<&str>,
+        first_name: &str,
+        seen_at: &str,
+    ) -> rusqlite::Result<()> {
+        self.with(|connection| {
+            connection.execute(
+                "INSERT INTO members (chat_id, user_id, username, first_name, last_seen) \
+                 VALUES (?1, ?2, ?3, ?4, ?5) \
+                 ON CONFLICT(chat_id, user_id) \
+                 DO UPDATE SET username = ?3, first_name = ?4, last_seen = ?5",
+                params![chat, user, username, first_name, seen_at],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Returns the member behind the username, ignoring case.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn member_by_username(&self, chat: i64, username: &str) -> rusqlite::Result<Option<i64>> {
+        self.with(|connection| {
+            connection
+                .query_row(
+                    "SELECT user_id FROM members \
+                     WHERE chat_id = ?1 AND username = ?2 COLLATE NOCASE",
+                    params![chat, username],
+                    |row| row.get(0),
+                )
+                .optional()
+        })
+    }
+
+    /// Returns every state value of the chat.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn state(&self, chat: i64) -> rusqlite::Result<HashMap<String, i64>> {
+        self.with(|connection| {
+            let mut statement =
+                connection.prepare("SELECT key, value FROM chat_state WHERE chat_id = ?1")?;
+            let rows = statement
+                .query_map(params![chat], |row| Ok((row.get(0)?, row.get(1)?)))?
+                .collect::<rusqlite::Result<HashMap<String, i64>>>()?;
+            Ok(rows)
+        })
+    }
+
+    /// Sets a state value of the chat.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the statement cannot be executed.
+    pub fn set_state(&self, chat: i64, key: &str, value: i64) -> rusqlite::Result<()> {
+        self.with(|connection| {
+            connection.execute(
+                "INSERT INTO chat_state (chat_id, key, value) VALUES (?1, ?2, ?3) \
+                 ON CONFLICT(chat_id, key) DO UPDATE SET value = ?3",
+                params![chat, key, value],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Returns the codes of the achievements the member already has.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn owned(&self, chat: i64, user: i64) -> rusqlite::Result<HashSet<String>> {
+        self.with(|connection| {
+            let mut statement = connection
+                .prepare("SELECT code FROM achievements WHERE chat_id = ?1 AND user_id = ?2")?;
+            let rows = statement
+                .query_map(params![chat, user], |row| row.get(0))?
+                .collect::<rusqlite::Result<HashSet<String>>>()?;
+            Ok(rows)
+        })
+    }
+
+    /// Gives the achievement to the member, telling whether it was new.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the statement cannot be executed.
+    pub fn unlock(&self, chat: i64, user: i64, code: &str, at: &str) -> rusqlite::Result<bool> {
+        self.with(|connection| {
+            let inserted = connection.execute(
+                "INSERT OR IGNORE INTO achievements (chat_id, user_id, code, unlocked_at) \
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![chat, user, code, at],
+            )?;
+            Ok(inserted > 0)
+        })
+    }
+
+    /// Returns the timestamp at which the member unlocked the achievement, if they have it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn unlocked_at(
+        &self,
+        chat: i64,
+        user: i64,
+        code: &str,
+    ) -> rusqlite::Result<Option<String>> {
+        self.with(|connection| {
+            connection
+                .query_row(
+                    "SELECT unlocked_at FROM achievements \
+                     WHERE chat_id = ?1 AND user_id = ?2 AND code = ?3",
+                    params![chat, user, code],
+                    |row| row.get(0),
+                )
+                .optional()
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::ops::store::Store;
+
+    fn store() -> Store {
+        Store::in_memory().unwrap()
+    }
+
+    #[test]
+    fn accumulates_a_counter_across_bumps() {
+        let store = store();
+        store.bump(42, 7, "messages", 1).unwrap();
+        let value = store.bump(42, 7, "messages", 1).unwrap();
+        assert_eq!(
+            value, 2,
+            "counter after two bumps was '{value}', expected '2'"
+        );
+    }
+
+    #[test]
+    fn keeps_counters_of_different_members_apart() {
+        let store = store();
+        store.bump(42, 7, "messages", 5).unwrap();
+        store.bump(42, 8, "messages", 1).unwrap();
+        let seven = store.stat(42, 7, "messages").unwrap();
+        let eight = store.stat(42, 8, "messages").unwrap();
+        assert_eq!(
+            (seven, eight),
+            (5, 1),
+            "counters were '{:?}', expected '(5, 1)'",
+            (seven, eight)
+        );
+    }
+
+    #[test]
+    fn reports_zero_for_a_counter_that_was_never_bumped() {
+        let store = store();
+        let value = store.stat(42, 7, "night_messages").unwrap();
+        assert_eq!(
+            value, 0,
+            "counter that was never bumped was '{value}', expected '0'"
+        );
+    }
+
+    #[test]
+    fn overwrites_a_counter_on_set() {
+        let store = store();
+        store.bump(42, 7, "longest_message", 100).unwrap();
+        store.set_stat(42, 7, "longest_message", 40).unwrap();
+        let value = store.stat(42, 7, "longest_message").unwrap();
+        assert_eq!(value, 40, "counter after set was '{value}', expected '40'");
+    }
+
+    #[test]
+    fn reads_every_counter_of_a_member_at_once() {
+        let store = store();
+        store.bump(42, 7, "messages", 3).unwrap();
+        store.bump(42, 7, "mat", 1).unwrap();
+        store.bump(42, 8, "messages", 9).unwrap();
+        let stats = store.stats(42, 7).unwrap();
+        let mut keys = stats.keys().cloned().collect::<Vec<String>>();
+        keys.sort();
+        assert_eq!(
+            (keys.as_slice(), stats.get("messages").copied()),
+            (
+                ["mat".to_string(), "messages".to_string()].as_slice(),
+                Some(3)
+            ),
+            "stats of member seven were '{stats:?}', expected only their own two counters"
+        );
+    }
+
+    #[test]
+    fn resolves_a_member_by_username_ignoring_case() {
+        let store = store();
+        store
+            .upsert_member(42, 7, Some("MatthewAFN"), "Матвей", "2026-08-06T10:00:00Z")
+            .unwrap();
+        let found = store.member_by_username(42, "matthewafn").unwrap();
+        assert_eq!(
+            found,
+            Some(7),
+            "member resolved by username was '{found:?}', expected 'Some(7)'"
+        );
+    }
+
+    #[test]
+    fn updates_a_member_instead_of_duplicating_them() {
+        let store = store();
+        store
+            .upsert_member(42, 7, Some("old"), "Матвей", "2026-08-06T10:00:00Z")
+            .unwrap();
+        store
+            .upsert_member(42, 7, Some("new"), "Матвей А", "2026-08-06T11:00:00Z")
+            .unwrap();
+        let by_old = store.member_by_username(42, "old").unwrap();
+        let by_new = store.member_by_username(42, "new").unwrap();
+        assert_eq!(
+            (by_old, by_new),
+            (None, Some(7)),
+            "member after the second upsert resolved to '{:?}', expected the old username gone and the new one resolving to '7'",
+            (by_old, by_new)
+        );
+    }
+
+    #[test]
+    fn keeps_chat_state_per_chat() {
+        let store = store();
+        store.set_state(42, "last_message_id", 100).unwrap();
+        store.set_state(-100, "last_message_id", 7).unwrap();
+        store.set_state(42, "last_message_id", 101).unwrap();
+        let first = store.state(42).unwrap();
+        let second = store.state(-100).unwrap();
+        assert_eq!(
+            (
+                first.get("last_message_id").copied(),
+                second.get("last_message_id").copied()
+            ),
+            (Some(101), Some(7)),
+            "chat state was '{:?}' and '{:?}', expected '101' and '7'",
+            first,
+            second
+        );
+    }
+
+    #[test]
+    fn unlocks_an_achievement_only_once() {
+        let store = store();
+        let first = store
+            .unlock(42, 7, "terpim", "2026-08-06T10:00:00Z")
+            .unwrap();
+        let again = store
+            .unlock(42, 7, "terpim", "2026-08-06T11:00:00Z")
+            .unwrap();
+        assert_eq!(
+            (first, again),
+            (true, false),
+            "unlocking twice reported '{:?}', expected '(true, false)'",
+            (first, again)
+        );
+    }
+
+    #[test]
+    fn lists_the_codes_a_member_owns() {
+        let store = store();
+        store
+            .unlock(42, 7, "terpim", "2026-08-06T10:00:00Z")
+            .unwrap();
+        store.unlock(42, 7, "haha", "2026-08-06T10:00:00Z").unwrap();
+        store
+            .unlock(42, 8, "robot", "2026-08-06T10:00:00Z")
+            .unwrap();
+        let owned = store.owned(42, 7).unwrap();
+        let mut codes = owned.iter().cloned().collect::<Vec<String>>();
+        codes.sort();
+        assert_eq!(
+            codes,
+            vec!["haha".to_string(), "terpim".to_string()],
+            "owned codes were '{codes:?}', expected only the two of member seven"
+        );
+    }
+}
