@@ -1,4 +1,8 @@
-use crate::ops::achievements::words::{MAT_EXCEPTIONS, MAT_ROOTS, PREFIXES};
+use crate::ops::achievements::words::{
+    APOLOGY_EXACT, APOLOGY_PHRASES, LAUGH_EXACT, LAUGH_LETTERS, MAT_EXCEPTIONS, MAT_ROOTS,
+    PLAY_EXACT, PLAY_PREFIXES, POLITICS_EXACT, POLITICS_PREFIXES, PREFIXES, STREAM_WORDS,
+    VINOGRAD_WORDS,
+};
 
 #[must_use]
 pub fn tokens(text: &str) -> Vec<String> {
@@ -59,6 +63,62 @@ fn is_mat(token: &str) -> bool {
             .any(|root| starts_after_prefix(token, root))
 }
 
+#[must_use]
+pub fn is_call_to_play(tokens: &[String]) -> bool {
+    tokens.iter().any(|token| {
+        PLAY_EXACT.contains(&token.as_str())
+            || PLAY_PREFIXES.iter().any(|prefix| token.starts_with(prefix))
+    })
+}
+
+#[must_use]
+pub fn is_politics(tokens: &[String]) -> bool {
+    tokens.iter().any(|token| {
+        POLITICS_EXACT.contains(&token.as_str())
+            || POLITICS_PREFIXES
+                .iter()
+                .any(|prefix| token.starts_with(prefix))
+    })
+}
+
+#[must_use]
+pub fn is_apology(text: &str, tokens: &[String]) -> bool {
+    let normalized = normalize(text);
+    tokens
+        .iter()
+        .any(|token| APOLOGY_EXACT.contains(&token.as_str()))
+        || APOLOGY_PHRASES
+            .iter()
+            .any(|phrase| normalized.contains(phrase))
+}
+
+#[must_use]
+pub fn is_laugh_only(tokens: &[String]) -> bool {
+    !tokens.is_empty()
+        && tokens.iter().all(|token| {
+            LAUGH_EXACT.contains(&token.as_str())
+                || (token.chars().count() >= 3
+                    && token.contains('х')
+                    && token.chars().all(|c| LAUGH_LETTERS.contains(&c)))
+        })
+}
+
+#[must_use]
+pub fn mentions_stream(tokens: &[String]) -> bool {
+    contains_any(tokens, STREAM_WORDS)
+}
+
+#[must_use]
+pub fn mentions_vinograd(tokens: &[String]) -> bool {
+    contains_any(tokens, VINOGRAD_WORDS)
+}
+
+fn contains_any(tokens: &[String], words: &[&str]) -> bool {
+    tokens
+        .iter()
+        .any(|token| words.iter().any(|word| token.starts_with(word)))
+}
+
 fn starts_after_prefix(token: &str, root: &str) -> bool {
     token.starts_with(root)
         || PREFIXES.iter().any(|prefix| {
@@ -73,7 +133,7 @@ fn starts_after_prefix(token: &str, root: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{has_mat, tokens};
+    use super::{has_mat, is_apology, is_call_to_play, is_laugh_only, is_politics, tokens};
 
     fn mat(text: &str) -> bool {
         has_mat(&tokens(text))
@@ -134,6 +194,77 @@ mod tests {
             assert!(
                 !mat(text),
                 "text '{text}' was detected as mat, expected it not to be"
+            );
+        }
+    }
+
+    #[test]
+    fn finds_a_call_to_play_by_exact_short_words() {
+        for text in ["го", "го в доту", "катку?", "кс го", "1х1 давай", "погнали"]
+        {
+            let found = is_call_to_play(&tokens(text));
+            assert!(
+                found,
+                "text '{text}' was not read as a call to play, expected it to be"
+            );
+        }
+    }
+
+    #[test]
+    fn does_not_read_a_call_to_play_inside_longer_words() {
+        for text in ["город красивый", "много всего", "гонка была"]
+        {
+            let found = is_call_to_play(&tokens(text));
+            assert!(
+                !found,
+                "text '{text}' was read as a call to play, expected it not to be"
+            );
+        }
+    }
+
+    #[test]
+    fn tells_politics_from_ordinary_words() {
+        let political = is_politics(&tokens("путин и либералы"));
+        let free = is_politics(&tokens("свобода это свое дело"));
+        assert_eq!(
+            (political, free),
+            (true, false),
+            "politics detection reported '{:?}', expected '(true, false)'",
+            (political, free)
+        );
+    }
+
+    #[test]
+    fn finds_an_apology_in_words_and_in_bigrams() {
+        for text in [
+            "извините",
+            "сорян",
+            "да лан",
+            "прошу прощения",
+            "я был не прав",
+        ] {
+            let found = is_apology(text, &tokens(text));
+            assert!(
+                found,
+                "text '{text}' was not read as an apology, expected it to be"
+            );
+        }
+    }
+
+    #[test]
+    fn finds_a_message_made_only_of_laughter() {
+        let laughs = ["ахаха", "ХААХХААХАХАХАХАХ", "хех", "лол"];
+        let words = ["ахаха ну ты даешь", "нормально"];
+        for text in laughs {
+            assert!(
+                is_laugh_only(&tokens(text)),
+                "text '{text}' was not read as laughter, expected it to be"
+            );
+        }
+        for text in words {
+            assert!(
+                !is_laugh_only(&tokens(text)),
+                "text '{text}' was read as laughter, expected it not to be"
             );
         }
     }
