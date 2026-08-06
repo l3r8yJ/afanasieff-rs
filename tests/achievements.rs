@@ -111,7 +111,9 @@ fn counts_a_message_once_per_message_id() {
     let event = event_of("терпим", 7, 5);
     let first = apply(&store, &event).unwrap();
     let again = apply(&store, &event).unwrap();
-    let counted = store.stat(event.chat, event.user, "messages").unwrap();
+    let counted = store
+        .stat(event.chat, event.user, "unanswered_streak")
+        .unwrap();
     assert_eq!(
         (first, again, counted),
         (true, false, 1),
@@ -127,11 +129,13 @@ fn skips_a_message_whose_id_is_lower_than_the_last_processed_one() {
     let earlier = event_of("терпим", 7, 3);
     apply(&store, &first).unwrap();
     let counted_earlier = apply(&store, &earlier).unwrap();
-    let counted = store.stat(first.chat, first.user, "messages").unwrap();
+    let counted = store
+        .stat(first.chat, first.user, "unanswered_streak")
+        .unwrap();
     assert_eq!(
         (counted_earlier, counted),
         (false, 1),
-        "applying an earlier-id message reported '{:?}', expected it rejected and 'messages' left at '1'",
+        "applying an earlier-id message reported '{:?}', expected it rejected and 'unanswered_streak' left at '1'",
         (counted_earlier, counted)
     );
 }

@@ -47,7 +47,6 @@ pub fn apply(store: &Store, event: &Event) -> rusqlite::Result<bool> {
 }
 
 fn count_message(store: &Store, event: &Event) -> rusqlite::Result<()> {
-    store.bump(event.chat, event.user, "messages", 1)?;
     if event.hour_msk >= NIGHT_FROM_HOUR && event.hour_msk < NIGHT_TO_HOUR {
         store.bump(event.chat, event.user, "night_messages", 1)?;
     }
@@ -91,7 +90,6 @@ fn settle_apology(store: &Store, event: &Event) -> rusqlite::Result<()> {
         }
     }
     if event.mat {
-        store.bump(event.chat, event.user, "mat", 1)?;
         store.set_stat(event.chat, event.user, "last_mat_at", now)?;
     }
     Ok(())
