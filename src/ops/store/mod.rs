@@ -3,9 +3,14 @@ use std::sync::{Mutex, PoisonError};
 
 use rusqlite::{Connection, OptionalExtension, params};
 
+mod stats;
+
 pub const MATTHEW_USERNAME: &str = "MatthewAFN";
 
-const MIGRATIONS: &[&str] = &[include_str!("../../../migrations/0001_init.sql")];
+const MIGRATIONS: &[&str] = &[
+    include_str!("../../../migrations/0001_init.sql"),
+    include_str!("../../../migrations/0002_achievements.sql"),
+];
 
 pub struct Store {
     connection: Mutex<Connection>,
@@ -37,7 +42,7 @@ impl Store {
         })
     }
 
-    fn with<T>(
+    pub(super) fn with<T>(
         &self,
         call: impl FnOnce(&Connection) -> rusqlite::Result<T>,
     ) -> rusqlite::Result<T> {
