@@ -4,6 +4,7 @@ use rand::{Rng, rng};
 use teloxide::{Bot, types::Message};
 
 use crate::ops::{
+    achievements::record_bot_reply,
     consts::{MATTHEW_KEYWORD, MATTHEW_SOURCE},
     error::Error,
     predicates::contains_ignore_case,
@@ -40,6 +41,7 @@ pub async fn send_random_matthew_quote(
 pub async fn reply_with_quote(bot: &Bot, message: &Message, store: &Store) -> Result<(), Error> {
     if let Some(quote) = store.random_quote(MATTHEW_SOURCE)? {
         send_reply_message_set_reaction(&quote, "💔", bot, message).await;
+        record_bot_reply(store, message);
     }
     Ok(())
 }

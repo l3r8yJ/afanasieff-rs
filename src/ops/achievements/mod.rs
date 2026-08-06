@@ -64,6 +64,17 @@ fn earned(store: &Store, event: &Event) -> Vec<Achievement> {
     unlocked(&stats, &owned)
 }
 
+pub fn record_bot_reply(store: &Store, message: &teloxide::types::Message) {
+    let Some(author) = message.from.as_ref() else {
+        return;
+    };
+    let chat = message.chat.id.0;
+    let user = i64::try_from(author.id.0).unwrap_or(i64::MAX);
+    if let Err(error) = store.bump(chat, user, "bot_replies", 1) {
+        log::error!("bot reply to member '{user}' in chat '{chat}' was not counted: '{error}'");
+    }
+}
+
 async fn award(bot: &Bot, store: &Store, event: &Event, achievement: Achievement) {
     let given = store.unlock(
         event.chat,

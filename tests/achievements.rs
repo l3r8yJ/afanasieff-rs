@@ -1,6 +1,7 @@
 use afanasieff_rs::handler_tree;
 use afanasieff_rs::ops::achievements::apply::apply;
 use afanasieff_rs::ops::achievements::event::{Event, Mention};
+use afanasieff_rs::ops::achievements::record_bot_reply;
 use afanasieff_rs::ops::store::Store;
 use chrono::{TimeZone, Utc};
 use std::sync::Arc;
@@ -177,6 +178,22 @@ fn counts_a_monologue_of_five_messages() {
     assert_eq!(
         monologues, 1,
         "monologues after five messages in a row were '{monologues}', expected '1'"
+    );
+}
+
+#[test]
+fn counts_a_quote_the_bot_sent_to_a_member() {
+    let store = Store::in_memory().unwrap();
+    let message = MockMessageText::new()
+        .text("а виноград то вкусный")
+        .from(user(7, "matthew"))
+        .build();
+    record_bot_reply(&store, &message);
+    record_bot_reply(&store, &message);
+    let counted = store.stat(message.chat.id.0, 7, "bot_replies").unwrap();
+    assert_eq!(
+        counted, 2,
+        "bot replies counted were '{counted}', expected '2'"
     );
 }
 

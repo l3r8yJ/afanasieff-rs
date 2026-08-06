@@ -3,6 +3,7 @@ use std::sync::Arc;
 use teloxide::{Bot, types::Message};
 
 use crate::ops::{
+    achievements::record_bot_reply,
     consts::{VINOGRAD_KEYWORD, VINOGRAD_SOURCE},
     error::Error,
     predicates::contains_ignore_case,
@@ -22,6 +23,7 @@ pub async fn send_random_vinograd_quote(
 ) -> Result<(), Error> {
     if let Some(quote) = store.random_quote(VINOGRAD_SOURCE)? {
         send_reply_message_set_reaction(&quote, "💩", &bot, &message).await;
+        record_bot_reply(&store, &message);
     }
     Ok(())
 }
