@@ -5,8 +5,11 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use afanasieff_rs::ops::commands::Command;
 use afanasieff_rs::ops::store::Store;
 use afanasieff_rs::{cron, handler_tree};
+use teloxide::prelude::Requester;
+use teloxide::utils::command::BotCommands;
 use teloxide::{Bot, dptree, prelude::Dispatcher};
 use tokio::signal::unix::{SignalKind, signal};
 use tokio_util::sync::CancellationToken;
@@ -21,6 +24,10 @@ async fn main() {
         std::fs::create_dir_all(parent).expect("the database directory is creatable");
     }
     let store = Arc::new(Store::open(&path).expect("the database opens and migrates at startup"));
+    match bot.set_my_commands(Command::bot_commands()).await {
+        Ok(_) => log::info!("commands registered: '{:?}'", Command::bot_commands()),
+        Err(error) => log::error!("commands were not registered: '{error}'"),
+    }
     let shutdown = CancellationToken::new();
     let hourly = tokio::spawn(cron::quote_per_hour::start_cron(
         bot.clone(),

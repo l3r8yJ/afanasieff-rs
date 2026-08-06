@@ -26,9 +26,9 @@ async fn lists_every_achievement_with_its_condition() {
     let store = Arc::new(Store::in_memory().unwrap());
     let answer = answer_of("/achievements", &store).await;
     assert!(
-        answer.contains("Терпим — 10 своих сообщений подряд")
-            && answer.contains("Петух в законе — собрать пять любых других"),
-        "catalogue answer was '{answer}', expected it to list titles with conditions"
+        answer.contains("<b>Терпим</b>\n     <i>10 своих сообщений подряд")
+            && answer.contains("<b>Петух в законе</b>\n     <i>собрать пять любых других</i>"),
+        "catalogue answer was '{answer}', expected every title in bold above its condition in italics"
     );
 }
 
@@ -37,8 +37,8 @@ async fn shows_locked_and_unlocked_achievements_of_the_caller() {
     let store = Arc::new(Store::in_memory().unwrap());
     let answer = answer_of("/my_achievements", &store).await;
     assert!(
-        answer.contains("0/17") && answer.contains("🔒"),
-        "personal answer was '{answer}', expected a zero score and locked entries"
+        answer.contains("0 из 17") && answer.contains("🔒") && answer.contains("▱▱▱▱▱▱▱▱▱▱"),
+        "personal answer was '{answer}', expected a zero score, locked entries and an empty progress bar"
     );
 }
 
@@ -60,8 +60,8 @@ async fn joins_the_header_and_the_locked_list_with_a_single_blank_line_when_noth
     let store = Arc::new(Store::in_memory().unwrap());
     let answer = answer_of("/my_achievements", &store).await;
     assert!(
-        !answer.contains("\n\n\n"),
-        "personal answer with nothing owned was '{answer}', expected no run of more than one blank line"
+        answer.contains("0 из 17") && !answer.contains("\n\n\n"),
+        "personal answer with nothing owned was '{answer}', expected the zero score and no run of more than one blank line"
     );
 }
 
@@ -84,6 +84,10 @@ async fn orders_locked_achievements_by_closeness_to_their_threshold_with_the_met
     let meta = answer
         .find("Петух в законе")
         .expect("the meta achievement is listed");
+    assert!(
+        answer.contains("▰▰▰▰▰▰▰▰▱▱ <code>40/50</code>"),
+        "personal answer was '{answer}', expected forty of fifty to fill eight bar cells of ten"
+    );
     assert!(
         closest < farthest && farthest < meta,
         "locked order was closest={closest}, farthest={farthest}, meta={meta} in '{answer}', expected the achievement nearer its threshold before the farther one, and the no-progress meta achievement last"
