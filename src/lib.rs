@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use chrono::Utc;
+use teloxide::Bot;
 use teloxide::dispatching::{UpdateFilterExt, UpdateHandler};
 use teloxide::dptree;
 use teloxide::types::{Message, Update, UpdateKind};
@@ -26,6 +27,9 @@ const FIVE_MINS: f32 = 5.0 * 60.0;
 pub fn handler_tree() -> UpdateHandler<Error> {
     dptree::entry()
         .inspect(|update: Update, store: Arc<Store>| ops::intake::observe(&store, update))
+        .inspect_async(|update: Update, bot: Bot, store: Arc<Store>| async move {
+            ops::achievements::track_and_award(&bot, &store, &update).await;
+        })
         .filter(|u: Update| match u.kind {
             UpdateKind::Message(m) => {
                 let now = Utc::now();

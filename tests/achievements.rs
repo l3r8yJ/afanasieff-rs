@@ -1,8 +1,11 @@
+use afanasieff_rs::handler_tree;
 use afanasieff_rs::ops::achievements::apply::apply;
 use afanasieff_rs::ops::achievements::event::{Event, Mention};
 use afanasieff_rs::ops::store::Store;
 use chrono::{TimeZone, Utc};
+use std::sync::Arc;
 use teloxide::types::{MessageEntity, MessageEntityKind, Update, UpdateId, UpdateKind, User};
+use teloxide_tests::mock_bot::MockBot;
 use teloxide_tests::{MockMessageText, MockUser};
 
 fn update_of(message: teloxide::types::Message) -> Update {
@@ -150,5 +153,36 @@ fn counts_a_monologue_of_five_messages() {
     assert_eq!(
         monologues, 1,
         "monologues after five messages in a row were '{monologues}', expected '1'"
+    );
+}
+
+#[tokio::test]
+async fn announces_the_streak_achievement_once() {
+    let store = Arc::new(Store::in_memory().unwrap());
+    let mut announced = 0;
+    for id in 1..=12 {
+        let mut bot = MockBot::new(
+            MockMessageText::new()
+                .text("ну и ладно")
+                .from(user(7, "matthew"))
+                .id(id),
+            handler_tree(),
+        );
+        bot.dependencies(teloxide::dptree::deps![Arc::clone(&store)]);
+        bot.dispatch().await;
+        announced += bot
+            .get_responses()
+            .sent_messages
+            .iter()
+            .filter(|message| {
+                message
+                    .text()
+                    .is_some_and(|text| text.contains("Тебе никто не ответил"))
+            })
+            .count();
+    }
+    assert_eq!(
+        announced, 1,
+        "the streak achievement was announced '{announced}' times, expected exactly one"
     );
 }
