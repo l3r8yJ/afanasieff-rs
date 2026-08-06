@@ -33,15 +33,16 @@ pub fn apply(store: &Store, event: &Event) -> rusqlite::Result<bool> {
         &event.first_name,
         &event.created_at.to_rfc3339(),
     )?;
+    let targets = targets(store, event)?;
     count_message(store, event)?;
     count_words(store, event)?;
     settle_apology(store, event)?;
     settle_streak(store, event)?;
-    settle_ping(store, event)?;
+    settle_ping(store, event, &targets)?;
     settle_call(store, event, &state)?;
     settle_monologue(store, event, &state)?;
     settle_chain(store, event, &state)?;
-    count_mentions(store, event)?;
+    count_mentions(store, event, &targets)?;
     store.set_state(event.chat, "last_message_id", i64::from(event.message_id))?;
     Ok(true)
 }
@@ -105,7 +106,7 @@ fn settle_streak(store: &Store, event: &Event) -> rusqlite::Result<()> {
     Ok(())
 }
 
-fn settle_ping(store: &Store, event: &Event) -> rusqlite::Result<()> {
+fn settle_ping(store: &Store, event: &Event, targets: &[i64]) -> rusqlite::Result<()> {
     let now = event.created_at.timestamp();
     let pinged_at = store.stat(event.chat, event.user, "pinged_at")?;
     if pinged_at > 0 {
@@ -114,9 +115,9 @@ fn settle_ping(store: &Store, event: &Event) -> rusqlite::Result<()> {
         }
         store.set_stat(event.chat, event.user, "pinged_at", 0)?;
     }
-    for target in targets(store, event)? {
-        if target != event.user && store.stat(event.chat, target, "pinged_at")? == 0 {
-            store.set_stat(event.chat, target, "pinged_at", now)?;
+    for target in targets {
+        if *target != event.user && store.stat(event.chat, *target, "pinged_at")? == 0 {
+            store.set_stat(event.chat, *target, "pinged_at", now)?;
         }
     }
     Ok(())
@@ -188,9 +189,9 @@ fn settle_chain(
     Ok(())
 }
 
-fn count_mentions(store: &Store, event: &Event) -> rusqlite::Result<()> {
-    for target in targets(store, event)? {
-        if target != event.user {
+fn count_mentions(store: &Store, event: &Event, targets: &[i64]) -> rusqlite::Result<()> {
+    for target in targets {
+        if *target != event.user {
             store.bump(event.chat, event.user, &format!("mention:{target}"), 1)?;
         }
     }
