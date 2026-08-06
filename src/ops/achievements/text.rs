@@ -133,7 +133,12 @@ fn starts_after_prefix(token: &str, root: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{has_mat, is_apology, is_call_to_play, is_laugh_only, is_politics, tokens};
+    use super::{
+        APOLOGY_EXACT, APOLOGY_PHRASES, LAUGH_EXACT, MAT_EXCEPTIONS, MAT_ROOTS, PLAY_EXACT,
+        PLAY_PREFIXES, POLITICS_EXACT, POLITICS_PREFIXES, PREFIXES, STREAM_WORDS, VINOGRAD_WORDS,
+        has_mat, is_apology, is_call_to_play, is_laugh_only, is_politics, mentions_stream,
+        mentions_vinograd, normalize, tokens,
+    };
 
     fn mat(text: &str) -> bool {
         has_mat(&tokens(text))
@@ -266,6 +271,74 @@ mod tests {
                 !is_laugh_only(&tokens(text)),
                 "text '{text}' was read as laughter, expected it not to be"
             );
+        }
+    }
+
+    #[test]
+    fn finds_a_stream_mention_by_prefix() {
+        for text in ["стрим", "стримчик", "го стримить"] {
+            assert!(
+                mentions_stream(&tokens(text)),
+                "text '{text}' was not read as a stream mention, expected it to be"
+            );
+        }
+    }
+
+    #[test]
+    fn does_not_read_a_stream_mention_in_unrelated_text() {
+        for text in ["привет", "го в доту"] {
+            assert!(
+                !mentions_stream(&tokens(text)),
+                "text '{text}' was read as a stream mention, expected it not to be"
+            );
+        }
+    }
+
+    #[test]
+    fn finds_a_vinograd_mention_by_prefix() {
+        for text in ["виноград", "лысина", "данила", "данек", "данёк"]
+        {
+            assert!(
+                mentions_vinograd(&tokens(text)),
+                "text '{text}' was not read as a vinograd mention, expected it to be"
+            );
+        }
+    }
+
+    #[test]
+    fn does_not_read_a_vinograd_mention_in_unrelated_text() {
+        for text in ["привет", "го в доту"] {
+            assert!(
+                !mentions_vinograd(&tokens(text)),
+                "text '{text}' was read as a vinograd mention, expected it not to be"
+            );
+        }
+    }
+
+    #[test]
+    fn every_word_list_entry_survives_normalisation_unchanged() {
+        let lists: &[(&str, &[&str])] = &[
+            ("MAT_ROOTS", MAT_ROOTS),
+            ("MAT_EXCEPTIONS", MAT_EXCEPTIONS),
+            ("PREFIXES", PREFIXES),
+            ("PLAY_EXACT", PLAY_EXACT),
+            ("PLAY_PREFIXES", PLAY_PREFIXES),
+            ("POLITICS_EXACT", POLITICS_EXACT),
+            ("POLITICS_PREFIXES", POLITICS_PREFIXES),
+            ("APOLOGY_EXACT", APOLOGY_EXACT),
+            ("APOLOGY_PHRASES", APOLOGY_PHRASES),
+            ("LAUGH_EXACT", LAUGH_EXACT),
+            ("STREAM_WORDS", STREAM_WORDS),
+            ("VINOGRAD_WORDS", VINOGRAD_WORDS),
+        ];
+        for (list_name, entries) in lists {
+            for entry in *entries {
+                let normalized = normalize(entry);
+                assert_eq!(
+                    &normalized, entry,
+                    "entry '{entry}' in {list_name} normalised to '{normalized}', expected it unchanged since a doubled letter makes the entry unreachable"
+                );
+            }
         }
     }
 }
