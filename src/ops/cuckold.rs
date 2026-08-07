@@ -178,7 +178,13 @@ const MEDALS: &[&str] = &["🥇", "🥈", "🥉"];
 #[must_use]
 pub fn stats(message: &Message, store: &Store) -> String {
     let chat = message.chat.id.0;
-    let ranked = store.ranking(chat, "cuckold_days").unwrap_or_default();
+    let ranked = match store.ranking(chat, "cuckold_days") {
+        Ok(ranked) => ranked,
+        Err(error) => {
+            log::error!("cuckold ranking of chat '{chat}' was not read: '{error}'");
+            return "Бля, я обосрался. Попробуйте позже.".to_string();
+        }
+    };
     if ranked.is_empty() {
         return "🏆 <b>Куколды чата</b>\n\nНикто ещё не был куколдом. Терпим.".to_string();
     }
@@ -214,8 +220,12 @@ pub fn stats(message: &Message, store: &Store) -> String {
 
 fn today(message: &Message, store: &Store) -> String {
     let chat = message.chat.id.0;
-    let Ok(state) = store.state(chat) else {
-        return String::new();
+    let state = match store.state(chat) {
+        Ok(state) => state,
+        Err(error) => {
+            log::error!("chat state of chat '{chat}' was not read for today's cuckold: '{error}'");
+            return String::new();
+        }
     };
     let drawn_on = state.get("cuckold_day").copied().unwrap_or_default();
     let drawn = state.get("cuckold_user").copied().unwrap_or_default();
@@ -224,7 +234,11 @@ fn today(message: &Message, store: &Store) -> String {
     }
     match store.member_name(chat, drawn) {
         Ok(Some(name)) => format!("\n\nСегодня: {}", escape(&name)),
-        Ok(None) | Err(_) => String::new(),
+        Ok(None) => String::new(),
+        Err(error) => {
+            log::error!("name of cuckold '{drawn}' in chat '{chat}' was not read: '{error}'");
+            String::new()
+        }
     }
 }
 
@@ -235,7 +249,9 @@ mod tests {
     use rand::SeedableRng;
     use rand::rngs::StdRng;
 
-    use super::{day_of, roll};
+    use teloxide_tests::MockMessageText;
+
+    use super::{day_of, roll, stats};
     use crate::ops::store::Store;
 
     const CHAT: i64 = 42;
@@ -390,5 +406,19 @@ mod tests {
         assert_that!(drawn)
             .named("draw against a store missing its state table")
             .is_err();
+    }
+
+    #[test]
+    fn admits_fault_when_the_ranking_cannot_be_read_instead_of_calling_the_chat_empty() {
+        let store = Store::in_memory().unwrap();
+        store
+            .with(|connection| connection.execute_batch("DROP TABLE member_stats"))
+            .unwrap();
+        let message = MockMessageText::new().text("/cuckold_stats").build();
+        let rendered = stats(&message, &store);
+        assert_that!(rendered.as_str())
+            .named("stats rendered with a broken ranking table")
+            .contains("обосрался")
+            .does_not_contain("Никто ещё не был куколдом");
     }
 }
