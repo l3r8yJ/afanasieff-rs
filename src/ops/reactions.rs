@@ -73,8 +73,10 @@ fn promote(store: &Store, chat: i64, message: i32, user: i64) {
 fn wrote_by_matthew(store: &Store, chat: i64, user: i64) -> bool {
     store
         .member_username(chat, user)
-        .ok()
-        .flatten()
+        .unwrap_or_else(|error| {
+            log::error!("username of member '{user}' in chat '{chat}' was not read: '{error:#}'");
+            None
+        })
         .is_some_and(|username| username.eq_ignore_ascii_case(MATTHEW_USERNAME))
 }
 

@@ -191,7 +191,13 @@ pub fn stats(message: &Message, store: &Store) -> String {
                 .unwrap_or_else(|| standing.user.to_string());
             let best = store
                 .stat(chat, standing.user, "cuckold_best")
-                .unwrap_or_default();
+                .unwrap_or_else(|error| {
+                    log::error!(
+                        "cuckold_best of member '{}' in chat '{chat}' was not read: '{error:#}'",
+                        standing.user
+                    );
+                    Default::default()
+                });
             let run = if best > 1 {
                 format!(" · лучшая серия {best}")
             } else {
