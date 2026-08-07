@@ -171,7 +171,7 @@ fn top(message: &Message, store: &Store) -> String {
             format!(
                 "{rank} <b>{}</b> · {} из {}",
                 escape(&name),
-                standing.owned,
+                standing.count,
                 Achievement::ALL.len()
             )
         })

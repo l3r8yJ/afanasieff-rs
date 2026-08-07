@@ -307,7 +307,7 @@ impl Store {
 pub struct Standing {
     pub user: i64,
     pub name: Option<String>,
-    pub owned: i64,
+    pub count: i64,
 }
 
 impl Store {
@@ -332,11 +332,85 @@ impl Store {
                     Ok(Standing {
                         user: row.get(0)?,
                         name: row.get(1)?,
-                        owned: row.get(2)?,
+                        count: row.get(2)?,
                     })
                 })?
                 .collect::<rusqlite::Result<Vec<Standing>>>()?;
             Ok(standings)
+        })
+    }
+}
+
+pub struct Member {
+    pub user: i64,
+    pub name: String,
+}
+
+impl Store {
+    /// Returns the members of the chat last seen at or after the given moment.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn active_members(&self, chat: i64, since: &str) -> rusqlite::Result<Vec<Member>> {
+        self.with(|connection| {
+            let mut statement = connection.prepare(
+                "SELECT user_id, first_name FROM members \
+                 WHERE chat_id = ?1 AND last_seen >= ?2",
+            )?;
+            let members = statement
+                .query_map(params![chat, since], |row| {
+                    Ok(Member {
+                        user: row.get(0)?,
+                        name: row.get(1)?,
+                    })
+                })?
+                .collect::<rusqlite::Result<Vec<Member>>>()?;
+            Ok(members)
+        })
+    }
+
+    /// Returns the members of the chat ranked by the given counter, highest
+    /// first, leaving out everyone whose counter never moved.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn ranking(&self, chat: i64, key: &str) -> rusqlite::Result<Vec<Standing>> {
+        self.with(|connection| {
+            let mut statement = connection.prepare(
+                "SELECT s.user_id, m.first_name, s.value FROM member_stats s \
+                 LEFT JOIN members m ON m.chat_id = s.chat_id AND m.user_id = s.user_id \
+                 WHERE s.chat_id = ?1 AND s.key = ?2 AND s.value > 0 \
+                 ORDER BY s.value DESC",
+            )?;
+            let ranked = statement
+                .query_map(params![chat, key], |row| {
+                    Ok(Standing {
+                        user: row.get(0)?,
+                        name: row.get(1)?,
+                        count: row.get(2)?,
+                    })
+                })?
+                .collect::<rusqlite::Result<Vec<Standing>>>()?;
+            Ok(ranked)
+        })
+    }
+
+    /// Returns the member's first name.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn member_name(&self, chat: i64, user: i64) -> rusqlite::Result<Option<String>> {
+        self.with(|connection| {
+            connection
+                .query_row(
+                    "SELECT first_name FROM members WHERE chat_id = ?1 AND user_id = ?2",
+                    params![chat, user],
+                    |row| row.get(0),
+                )
+                .optional()
         })
     }
 }
@@ -564,5 +638,89 @@ mod tests {
         assert_that!(owner)
             .named("owner of an unknown message")
             .is_none();
+    }
+
+    #[test]
+    fn lists_only_the_members_seen_since_the_given_moment() {
+        let store = store();
+        store
+            .upsert_member(42, 1, Some("fresh"), "Свежий", "2026-08-07T10:00:00+00:00")
+            .unwrap();
+        store
+            .upsert_member(42, 2, Some("stale"), "Древний", "2026-01-01T10:00:00+00:00")
+            .unwrap();
+        let active = store
+            .active_members(42, "2026-07-08T00:00:00+00:00")
+            .unwrap();
+        let names = active
+            .iter()
+            .map(|member| member.name.clone())
+            .collect::<Vec<String>>();
+        assert_that!(names)
+            .named("active members")
+            .contains_exactly(["Свежий".to_string()]);
+    }
+
+    #[test]
+    fn keeps_the_active_members_of_two_chats_apart() {
+        let store = store();
+        store
+            .upsert_member(42, 1, Some("here"), "Наш", "2026-08-07T10:00:00+00:00")
+            .unwrap();
+        store
+            .upsert_member(-100, 2, Some("there"), "Чужой", "2026-08-07T10:00:00+00:00")
+            .unwrap();
+        let active = store
+            .active_members(42, "2026-07-08T00:00:00+00:00")
+            .unwrap();
+        assert_that!(active.len())
+            .named("active members of one chat")
+            .is_equal_to(1);
+    }
+
+    #[test]
+    fn ranks_members_by_a_counter_highest_first() {
+        let store = store();
+        store
+            .upsert_member(42, 1, Some("one"), "Первый", "2026-08-07T10:00:00+00:00")
+            .unwrap();
+        store
+            .upsert_member(42, 2, Some("two"), "Второй", "2026-08-07T10:00:00+00:00")
+            .unwrap();
+        store.set_stat(42, 1, "cuckold_days", 3).unwrap();
+        store.set_stat(42, 2, "cuckold_days", 9).unwrap();
+        let ranked = store.ranking(42, "cuckold_days").unwrap();
+        let names = ranked
+            .iter()
+            .map(|standing| standing.name.clone().unwrap_or_default())
+            .collect::<Vec<String>>();
+        assert_that!(names)
+            .named("ranking")
+            .contains_exactly(["Второй".to_string(), "Первый".to_string()]);
+    }
+
+    #[test]
+    fn leaves_a_zero_counter_out_of_the_ranking() {
+        let store = store();
+        store
+            .upsert_member(42, 1, Some("one"), "Первый", "2026-08-07T10:00:00+00:00")
+            .unwrap();
+        store.set_stat(42, 1, "cuckold_days", 0).unwrap();
+        let ranked = store.ranking(42, "cuckold_days").unwrap();
+        assert_that!(ranked.len())
+            .named("ranking of a zero counter")
+            .is_equal_to(0);
+    }
+
+    #[test]
+    fn returns_the_name_of_a_known_member() {
+        let store = store();
+        store
+            .upsert_member(42, 7, Some("m"), "Матвей", "2026-08-07T10:00:00+00:00")
+            .unwrap();
+        let name = store.member_name(42, 7).unwrap();
+        assert_that!(name)
+            .named("member name")
+            .is_equal_to(Some("Матвей".to_string()));
     }
 }
