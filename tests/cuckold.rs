@@ -153,6 +153,31 @@ async fn names_todays_cuckold_in_the_stats_only_after_a_draw() {
 }
 
 #[tokio::test]
+async fn awards_the_lawful_cuckold_achievement_on_the_winners_next_message_after_the_tenth_draw() {
+    let store = store_with_one_member();
+    for day in 0..10 {
+        call("/cuckold", at(day * 1440), &store).await;
+    }
+    let right_after_the_tenth_draw = store.owned(CHAT, 7).unwrap();
+    assert_that!(right_after_the_tenth_draw.contains("cuckold_v_zakone"))
+        .named("achievement right after the tenth draw")
+        .is_false();
+    let mut bot = MockBot::new(
+        MockMessageText::new()
+            .text("привет")
+            .date(at(10 * 1440))
+            .from(MockUser::new().id(7).build()),
+        handler_tree(),
+    );
+    bot.dependencies(teloxide::dptree::deps![Arc::clone(&store)]);
+    bot.dispatch().await;
+    let after_the_next_message = store.owned(CHAT, 7).unwrap();
+    assert_that!(after_the_next_message.contains("cuckold_v_zakone"))
+        .named("achievement after the winner's next message")
+        .is_true();
+}
+
+#[tokio::test]
 async fn says_so_when_nobody_has_ever_been_the_cuckold() {
     let store = store_with_one_member();
     let responses = call("/cuckold_stats", at(0), &store).await;
