@@ -77,5 +77,11 @@ fn wrote_by_matthew(store: &Store, chat: i64, user: i64) -> bool {
 }
 
 fn is_bot(store: &Store, chat: i64, user: i64) -> bool {
-    !store.is_member(chat, user).unwrap_or(true)
+    match store.is_member(chat, user) {
+        Ok(is_member) => !is_member,
+        Err(error) => {
+            log::error!("membership of user '{user}' in chat '{chat}' was not read: '{error}'");
+            false
+        }
+    }
 }
