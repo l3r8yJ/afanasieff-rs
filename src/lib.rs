@@ -10,7 +10,6 @@ use teloxide::dispatching::{HandlerExt, UpdateFilterExt, UpdateHandler};
 use teloxide::dptree;
 use teloxide::types::{Message, Update, UpdateKind};
 
-use crate::ops::error::Error;
 use crate::ops::matthew::send_random_matthew_quote;
 use crate::ops::store::Store;
 use crate::ops::stream::send_random_stream_quote;
@@ -26,7 +25,7 @@ const FIVE_MINS: f32 = 5.0 * 60.0;
 /// messages older than five minutes, answers the achievement commands, and
 /// replies with a random quote on the stream, matthew or vinograd keyword
 /// branches.
-pub fn handler_tree() -> UpdateHandler<Error> {
+pub fn handler_tree() -> UpdateHandler<anyhow::Error> {
     dptree::entry()
         .inspect(|update: Update, store: Arc<Store>| ops::intake::observe(&store, update))
         .inspect_async(|update: Update, bot: Bot, store: Arc<Store>| async move {

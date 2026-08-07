@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use afanasieff_rs::handler_tree;
 use afanasieff_rs::ops::consts::{STREAM_SOURCE, VINOGRAD_SOURCE};
-use afanasieff_rs::ops::error::Error;
 use afanasieff_rs::ops::matthew::reply_with_quote;
 use afanasieff_rs::ops::store::Store;
 use asserting::prelude::*;
@@ -12,7 +11,7 @@ use teloxide::types::{Message, ReactionType, Update};
 use teloxide_tests::mock_bot::DistributionKey;
 use teloxide_tests::{MockBot, MockMessageText};
 
-fn bot_with_store(text: &str) -> (MockBot<Error, DistributionKey>, Arc<Store>) {
+fn bot_with_store(text: &str) -> (MockBot<anyhow::Error, DistributionKey>, Arc<Store>) {
     let store = Arc::new(Store::in_memory().unwrap());
     let mut bot = MockBot::new(MockMessageText::new().text(text), handler_tree());
     bot.dependencies(teloxide::dptree::deps![Arc::clone(&store)]);
@@ -23,11 +22,11 @@ async fn reply_with_quote_endpoint(
     bot: Bot,
     message: Message,
     store: Arc<Store>,
-) -> Result<(), Error> {
+) -> anyhow::Result<()> {
     reply_with_quote(&bot, &message, &store).await
 }
 
-fn matthew_reply_tree() -> UpdateHandler<Error> {
+fn matthew_reply_tree() -> UpdateHandler<anyhow::Error> {
     teloxide::dptree::entry().branch(Update::filter_message().endpoint(reply_with_quote_endpoint))
 }
 

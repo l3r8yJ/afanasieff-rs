@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use teloxide::types::MessageReactionUpdated;
 
-use crate::ops::error::Error;
 use crate::ops::store::{MATTHEW_USERNAME, Store};
 
 /// Counts a reaction: it raises the score of a quote, resets the streak of the
@@ -13,7 +12,7 @@ use crate::ops::store::{MATTHEW_USERNAME, Store};
 ///
 /// Never returns an error; failures are logged so one bad reaction cannot stop
 /// the dispatcher.
-pub async fn observe(store: Arc<Store>, reaction: MessageReactionUpdated) -> Result<(), Error> {
+pub async fn observe(store: Arc<Store>, reaction: MessageReactionUpdated) -> anyhow::Result<()> {
     if reaction.new_reaction.is_empty() {
         log::debug!(
             "reaction on message '{}' was taken back",

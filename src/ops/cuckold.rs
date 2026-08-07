@@ -10,7 +10,6 @@ use teloxide::prelude::Requester;
 use teloxide::types::{ChatId, Message, ParseMode};
 use teloxide::utils::html::{escape, user_mention};
 
-use crate::ops::error::Error;
 use crate::ops::store::Store;
 
 const MOSCOW_OFFSET_SECONDS: i64 = 3 * 3600;
@@ -107,7 +106,7 @@ pub fn set_drumroll_for_tests(millis: u64) {
 /// # Errors
 ///
 /// Returns an error when the answer cannot be sent.
-pub async fn announce(bot: &Bot, message: &Message, store: &Store) -> Result<(), Error> {
+pub async fn announce(bot: &Bot, message: &Message, store: &Store) -> anyhow::Result<()> {
     let chat = message.chat.id;
     let outcome = roll(store, chat.0, message.date, &mut rand::rng());
     let drawn = match outcome {
@@ -136,7 +135,7 @@ pub async fn announce(bot: &Bot, message: &Message, store: &Store) -> Result<(),
     Ok(())
 }
 
-async fn reply_and_stop(bot: &Bot, chat: ChatId, text: &str) -> Result<(), Error> {
+async fn reply_and_stop(bot: &Bot, chat: ChatId, text: &str) -> anyhow::Result<()> {
     bot.send_message(chat, text).await?;
     Ok(())
 }

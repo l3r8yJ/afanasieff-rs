@@ -9,7 +9,6 @@ use teloxide::utils::html::escape;
 
 use crate::ops::achievements::rules::{Achievement, Stats};
 use crate::ops::cuckold::announce;
-use crate::ops::error::Error;
 use crate::ops::store::Store;
 
 const BAR_CELLS: i64 = 10;
@@ -43,7 +42,7 @@ pub async fn answer(
     message: Message,
     command: Command,
     store: Arc<Store>,
-) -> Result<(), Error> {
+) -> anyhow::Result<()> {
     let text = match command {
         Command::Cuckold => return announce(&bot, &message, &store).await,
         Command::CuckoldStats => crate::ops::cuckold::stats(&message, &store),

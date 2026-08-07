@@ -6,7 +6,6 @@ use teloxide::{Bot, types::Message};
 use crate::ops::{
     achievements::record_bot_reply,
     consts::{STREAM_KEYWORD, STREAM_SOURCE},
-    error::Error,
     predicates::contains_ignore_case,
     send::send_reply_message_set_reaction,
     store::Store,
@@ -26,7 +25,7 @@ pub async fn send_random_stream_quote(
     bot: Bot,
     message: Message,
     store: Arc<Store>,
-) -> Result<(), Error> {
+) -> anyhow::Result<()> {
     if rng().random_bool(crate::ops::chance::generated_on_keyword()) {
         let corpus = store.all_quotes()?;
         let phrase = crate::ops::markov::generate(&corpus, &mut rng());

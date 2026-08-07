@@ -82,7 +82,6 @@ mod tests {
 
     use crate::ops::chance;
     use crate::ops::consts::MATTHEW_SOURCE;
-    use crate::ops::error::Error;
     use crate::ops::store::Store;
 
     use super::send_to_every_chat;
@@ -91,12 +90,12 @@ mod tests {
 
     const CHAT: i64 = 12_345_678;
 
-    async fn drive(bot: Bot, store: Arc<Store>) -> Result<(), Error> {
+    async fn drive(bot: Bot, store: Arc<Store>) -> anyhow::Result<()> {
         send_to_every_chat(&bot, &store).await;
         Ok(())
     }
 
-    fn tree() -> UpdateHandler<Error> {
+    fn tree() -> UpdateHandler<anyhow::Error> {
         dptree::entry().branch(Update::filter_message().endpoint(drive))
     }
 
