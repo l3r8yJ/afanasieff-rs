@@ -78,7 +78,7 @@ async fn names_the_same_cuckold_without_a_drum_roll_for_the_rest_of_the_day() {
 }
 
 #[tokio::test]
-async fn says_there_is_nobody_to_draw_from_in_a_silent_chat() {
+async fn answers_when_the_draw_comes_back_empty() {
     let store = Arc::new(Store::in_memory().unwrap());
     let responses = call("/cuckold", at(0), &store).await;
     let answer = responses

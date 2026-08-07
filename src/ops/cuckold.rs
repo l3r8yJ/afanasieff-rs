@@ -7,7 +7,7 @@ use rand::seq::IndexedRandom;
 use teloxide::Bot;
 use teloxide::payloads::{EditMessageTextSetters, SendMessageSetters};
 use teloxide::prelude::Requester;
-use teloxide::types::{Message, ParseMode};
+use teloxide::types::{ChatId, Message, ParseMode};
 use teloxide::utils::html::{escape, user_mention};
 
 use crate::ops::error::Error;
@@ -118,16 +118,14 @@ pub fn set_drumroll_for_tests(millis: u64) {
 /// Returns an error when the answer cannot be sent.
 pub async fn announce(bot: &Bot, message: &Message, store: &Store) -> Result<(), Error> {
     let chat = message.chat.id;
-    let drawn = match roll(store, chat.0, message.date, &mut rand::rng()) {
-        Ok(drawn) => drawn,
+    let outcome = roll(store, chat.0, message.date, &mut rand::rng());
+    let drawn = match outcome {
+        Ok(Some(drawn)) => drawn,
+        Ok(None) => return reply_and_stop(bot, chat, "Играть не с кем. Терпим.").await,
         Err(error) => {
             log::error!("cuckold of chat '{}' was not drawn: '{error}'", chat.0);
-            None
+            return reply_and_stop(bot, chat, "Бля, я обосрался. Попробуйте позже.").await;
         }
-    };
-    let Some(drawn) = drawn else {
-        bot.send_message(chat, "Играть не с кем. Терпим.").await?;
-        return Ok(());
     };
     let verdict = verdict_for(&drawn);
     if !drawn.fresh {
@@ -144,6 +142,11 @@ pub async fn announce(bot: &Bot, message: &Message, store: &Store) -> Result<(),
     bot.edit_message_text(chat, sent.id, verdict)
         .parse_mode(ParseMode::Html)
         .await?;
+    Ok(())
+}
+
+async fn reply_and_stop(bot: &Bot, chat: ChatId, text: &str) -> Result<(), Error> {
+    bot.send_message(chat, text).await?;
     Ok(())
 }
 
@@ -356,5 +359,17 @@ mod tests {
         assert_that!(drawn)
             .named("draw from an empty chat")
             .is_none();
+    }
+
+    #[test]
+    fn fails_to_roll_when_the_chat_state_table_is_gone() {
+        let store = store_with_one_member();
+        store
+            .with(|connection| connection.execute_batch("DROP TABLE chat_state"))
+            .unwrap();
+        let drawn = roll(&store, CHAT, at(7, 10), &mut seeded());
+        assert_that!(drawn)
+            .named("draw against a store missing its state table")
+            .is_err();
     }
 }
