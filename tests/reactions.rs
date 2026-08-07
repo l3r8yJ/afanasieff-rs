@@ -45,6 +45,24 @@ fn reaction(message: i32, actor: u64, set: bool) -> Update {
     }
 }
 
+fn swap(message: i32, actor: u64) -> Update {
+    Update {
+        id: UpdateId(1),
+        kind: UpdateKind::MessageReaction(MessageReactionUpdated {
+            chat: chat(),
+            message_id: MessageId(message),
+            actor: MaybeAnonymousUser::User(MockUser::new().id(actor).build()),
+            date: Utc::now(),
+            old_reaction: vec![ReactionType::Emoji {
+                emoji: "🔥".to_string(),
+            }],
+            new_reaction: vec![ReactionType::Emoji {
+                emoji: "👍".to_string(),
+            }],
+        }),
+    }
+}
+
 async fn dispatch(update: Update, store: &Arc<Store>) {
     let mut bot = MockBot::new(update, handler_tree());
     bot.dependencies(teloxide::dptree::deps![Arc::clone(store)]);
@@ -65,6 +83,38 @@ async fn raises_the_score_of_a_quote_someone_reacted_to() {
     assert_that!(score)
         .named("score after one reaction")
         .is_equal_to(1);
+}
+
+#[tokio::test]
+async fn does_not_raise_the_score_again_when_an_actor_swaps_their_reaction() {
+    let store = Arc::new(Store::in_memory().unwrap());
+    let id = store
+        .random_quote_with_id("matthew")
+        .unwrap()
+        .expect("a matthew quote exists")
+        .0;
+    store.remember_message(CHAT, 5, 999, Some(id)).unwrap();
+    dispatch(reaction(5, 7, true), &store).await;
+    dispatch(swap(5, 7), &store).await;
+    let score = store.quote_score(id).unwrap();
+    assert_that!(score)
+        .named("score after a reaction swap")
+        .is_equal_to(1);
+}
+
+#[tokio::test]
+async fn still_resets_the_streak_when_the_reaction_is_swapped() {
+    let store = Arc::new(Store::in_memory().unwrap());
+    store
+        .upsert_member(CHAT, 100, Some("someone"), "Кто-то", "2026-08-07T10:00:00Z")
+        .unwrap();
+    store.set_stat(CHAT, 100, "unanswered_streak", 6).unwrap();
+    store.remember_message(CHAT, 5, 100, None).unwrap();
+    dispatch(swap(5, 7), &store).await;
+    let streak = store.stat(CHAT, 100, "unanswered_streak").unwrap();
+    assert_that!(streak)
+        .named("streak after a reaction swap")
+        .is_equal_to(0);
 }
 
 #[tokio::test]

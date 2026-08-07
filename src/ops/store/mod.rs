@@ -196,7 +196,8 @@ impl Store {
     ///
     /// # Errors
     ///
-    /// Returns an error when the query cannot be executed.
+    /// Returns an error when the query cannot be executed, including when the
+    /// quote does not exist.
     pub fn quote_score(&self, quote: i64) -> rusqlite::Result<i64> {
         self.with(|connection| {
             connection.query_row(
