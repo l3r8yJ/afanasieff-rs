@@ -134,6 +134,21 @@ impl Store {
         })
     }
 
+    /// Tells whether the chat has a member row for the given user.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn is_member(&self, chat: i64, user: i64) -> rusqlite::Result<bool> {
+        self.with(|connection| {
+            connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM members WHERE chat_id = ?1 AND user_id = ?2)",
+                params![chat, user],
+                |row| row.get(0),
+            )
+        })
+    }
+
     /// Returns every state value of the chat.
     ///
     /// # Errors

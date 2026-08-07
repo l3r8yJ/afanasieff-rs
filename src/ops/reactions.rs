@@ -76,5 +76,5 @@ fn wrote_by_matthew(store: &Store, chat: i64, user: i64) -> bool {
 }
 
 fn is_bot(store: &Store, chat: i64, user: i64) -> bool {
-    store.member_username(chat, user).ok().flatten().is_none()
+    !store.is_member(chat, user).unwrap_or(true)
 }

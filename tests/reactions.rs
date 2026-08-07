@@ -83,6 +83,33 @@ async fn resets_the_streak_of_the_member_whose_message_was_reacted_to() {
 }
 
 #[tokio::test]
+async fn resets_the_streak_of_a_member_who_has_no_username_on_file() {
+    let store = Arc::new(Store::in_memory().unwrap());
+    store
+        .upsert_member(CHAT, 100, None, "Кто-то", "2026-08-07T10:00:00Z")
+        .unwrap();
+    store.set_stat(CHAT, 100, "unanswered_streak", 6).unwrap();
+    store.remember_message(CHAT, 5, 100, None).unwrap();
+    dispatch(reaction(5, 7, true), &store).await;
+    let streak = store.stat(CHAT, 100, "unanswered_streak").unwrap();
+    assert_that!(streak)
+        .named("streak of a member without a username")
+        .is_equal_to(0);
+}
+
+#[tokio::test]
+async fn leaves_every_streak_alone_when_the_reacted_message_has_no_member_row() {
+    let store = Arc::new(Store::in_memory().unwrap());
+    store.set_stat(CHAT, 999, "unanswered_streak", 6).unwrap();
+    store.remember_message(CHAT, 5, 999, None).unwrap();
+    dispatch(reaction(5, 7, true), &store).await;
+    let streak = store.stat(CHAT, 999, "unanswered_streak").unwrap();
+    assert_that!(streak)
+        .named("streak of the message owner with no member row")
+        .is_equal_to(6);
+}
+
+#[tokio::test]
 async fn leaves_the_streak_alone_when_the_author_reacted_to_themselves() {
     let store = Arc::new(Store::in_memory().unwrap());
     store.set_stat(CHAT, 100, "unanswered_streak", 6).unwrap();
