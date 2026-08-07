@@ -8,6 +8,7 @@ use teloxide::types::{Message, ParseMode};
 use teloxide::utils::html::escape;
 
 use crate::ops::achievements::rules::{Achievement, Stats};
+use crate::ops::cuckold::announce;
 use crate::ops::error::Error;
 use crate::ops::store::Store;
 
@@ -18,6 +19,8 @@ const BAR_CELLS_USIZE: usize = 10;
 #[derive(BotCommands, Clone)]
 #[command(rename_rule = "snake_case")]
 pub enum Command {
+    #[command(description = "кто сегодня куколд дня")]
+    Cuckold,
     #[command(description = "все ачивки и за что их дают")]
     Achievements,
     #[command(description = "что открыто у тебя, а что нет")]
@@ -40,6 +43,7 @@ pub async fn answer(
     store: Arc<Store>,
 ) -> Result<(), Error> {
     let text = match command {
+        Command::Cuckold => return announce(&bot, &message, &store).await,
         Command::Achievements => catalogue(),
         Command::MyAchievements => personal(&message, &store),
         Command::Top => top(&message, &store),

@@ -1,7 +1,16 @@
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration as StdDuration;
+
 use chrono::{DateTime, Duration, Utc};
 use rand::Rng;
 use rand::seq::IndexedRandom;
+use teloxide::Bot;
+use teloxide::payloads::{EditMessageTextSetters, SendMessageSetters};
+use teloxide::prelude::Requester;
+use teloxide::types::{Message, ParseMode};
+use teloxide::utils::html::user_mention;
 
+use crate::ops::error::Error;
 use crate::ops::store::Store;
 
 const MOSCOW_OFFSET_SECONDS: i64 = 3 * 3600;
@@ -9,6 +18,16 @@ const MOSCOW_OFFSET_SECONDS: i64 = 3 * 3600;
 const SECONDS_IN_DAY: i64 = 86_400;
 
 const ACTIVE_DAYS: i64 = 30;
+
+const DRUMROLL_MILLIS: u64 = 1500;
+
+static DRUMROLL: AtomicU64 = AtomicU64::new(DRUMROLL_MILLIS);
+
+const VERDICTS: &[&str] = &[
+    "Хорошо куколд сука.",
+    "Не понял, куколд моя бабушка?",
+    "Манифест куколдистической партии принят.",
+];
 
 #[derive(Debug)]
 pub struct Roll {
@@ -84,6 +103,70 @@ fn repeat(store: &Store, chat: i64, user: i64) -> rusqlite::Result<Option<Roll>>
         streak: store.stat(chat, user, "cuckold_streak")?,
         fresh: false,
     }))
+}
+
+/// Overrides the pause between the drum roll beats, so a test does not wait.
+#[doc(hidden)]
+pub fn set_drumroll_for_tests(millis: u64) {
+    DRUMROLL.store(millis, Ordering::Relaxed);
+}
+
+/// Announces the cuckold of the day, drawing one when today has none yet.
+///
+/// # Errors
+///
+/// Returns an error when the answer cannot be sent.
+pub async fn announce(bot: &Bot, message: &Message, store: &Store) -> Result<(), Error> {
+    let chat = message.chat.id;
+    let drawn = match roll(store, chat.0, message.date, &mut rand::rng()) {
+        Ok(drawn) => drawn,
+        Err(error) => {
+            log::error!("cuckold of chat '{}' was not drawn: '{error}'", chat.0);
+            None
+        }
+    };
+    let Some(drawn) = drawn else {
+        bot.send_message(chat, "Играть не с кем. Терпим.").await?;
+        return Ok(());
+    };
+    let verdict = verdict_for(&drawn);
+    if !drawn.fresh {
+        bot.send_message(chat, verdict)
+            .parse_mode(ParseMode::Html)
+            .await?;
+        return Ok(());
+    }
+    let sent = bot.send_message(chat, "Ищу куколда дня…").await?;
+    sleep().await;
+    bot.edit_message_text(chat, sent.id, "Проверяю списки…")
+        .await?;
+    sleep().await;
+    bot.edit_message_text(chat, sent.id, verdict)
+        .parse_mode(ParseMode::Html)
+        .await?;
+    Ok(())
+}
+
+fn verdict_for(drawn: &Roll) -> String {
+    let mention = user_mention(
+        teloxide::types::UserId(u64::try_from(drawn.user).unwrap_or_default()),
+        &drawn.name,
+    );
+    let line = VERDICTS
+        .choose(&mut rand::rng())
+        .copied()
+        .unwrap_or("Хорошо куколд сука.");
+    format!(
+        "🎉 Куколд дня — {mention}. {line}\nВсего раз: {}. Серия: {}.",
+        drawn.total, drawn.streak
+    )
+}
+
+async fn sleep() {
+    let millis = DRUMROLL.load(Ordering::Relaxed);
+    if millis > 0 {
+        tokio::time::sleep(StdDuration::from_millis(millis)).await;
+    }
 }
 
 #[cfg(test)]
