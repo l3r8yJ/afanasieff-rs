@@ -25,10 +25,7 @@ async fn main() -> anyhow::Result<()> {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("creating the database directory '{}'", parent.display()))?;
     }
-    let store = Arc::new(
-        Store::open(&path)
-            .with_context(|| format!("opening the database at '{}'", path.display()))?,
-    );
+    let store = Arc::new(Store::open(&path)?);
     match bot.set_my_commands(Command::bot_commands()).await {
         Ok(_) => log::info!("commands registered: '{:?}'", Command::bot_commands()),
         Err(error) => log::error!("commands were not registered: '{error:#}'"),
