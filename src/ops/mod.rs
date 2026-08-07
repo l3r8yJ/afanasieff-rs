@@ -3,6 +3,7 @@ pub mod commands;
 pub mod consts;
 pub mod error;
 pub mod intake;
+pub mod markov;
 pub mod matthew;
 pub mod predicates;
 pub mod send;
