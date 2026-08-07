@@ -28,7 +28,7 @@ async fn main() -> anyhow::Result<()> {
     let store = Arc::new(Store::open(&path)?);
     match bot.set_my_commands(Command::bot_commands()).await {
         Ok(_) => log::info!("commands registered: '{:?}'", Command::bot_commands()),
-        Err(error) => log::error!("commands were not registered: '{error:#}'"),
+        Err(error) => log::error!("commands were not registered: '{error}'"),
     }
     let shutdown = CancellationToken::new();
     let hourly = tokio::spawn(cron::quote_per_hour::start_cron(
@@ -55,10 +55,10 @@ async fn main() -> anyhow::Result<()> {
     }
     shutdown.cancel();
     if let Err(error) = hourly.await {
-        log::error!("the hourly quote task ended badly: '{error:#}'");
+        log::error!("the hourly quote task ended badly: '{error}'");
     }
     if let Err(error) = promoting.await {
-        log::error!("the promotion task ended badly: '{error:#}'");
+        log::error!("the promotion task ended badly: '{error}'");
     }
     Ok(())
 }

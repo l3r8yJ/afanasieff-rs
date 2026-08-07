@@ -131,7 +131,7 @@ async fn award(bot: &Bot, store: &Store, event: &Event, achievement: Achievement
             event.user
         ),
         Err(error) => log::error!(
-            "achievement '{}' of member '{}' was not announced: '{error:#}'",
+            "achievement '{}' of member '{}' was not announced: '{error}'",
             achievement.code(),
             event.user
         ),

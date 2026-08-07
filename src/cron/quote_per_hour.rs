@@ -59,7 +59,7 @@ async fn send_to_every_chat(bot: &Bot, store: &Store) {
                 log::info!("message sent for id: '{id}'");
                 remember(store, &sent, quote);
             }
-            Err(error) => log::error!("message for id '{id}' failed: '{error:#}'"),
+            Err(error) => log::error!("message for id '{id}' failed: '{error}'"),
         }
     }
 }
