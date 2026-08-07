@@ -81,8 +81,8 @@ pub fn roll(
     if streak > best {
         store.set_stat(chat, winner.user, "cuckold_best", streak)?;
     }
-    store.set_state(chat, "cuckold_day", today)?;
     store.set_state(chat, "cuckold_user", winner.user)?;
+    store.set_state(chat, "cuckold_day", today)?;
     Ok(Some(Roll {
         user: winner.user,
         name: winner.name.clone(),
@@ -295,6 +295,25 @@ mod tests {
         assert_that!(again.total)
             .named("tally after a repeat")
             .is_equal_to(1);
+    }
+
+    #[test]
+    fn records_the_winners_identity_before_closing_the_days_gate() {
+        let store = store_with_one_member();
+        let drawn = roll(&store, CHAT, at(7, 10), &mut seeded())
+            .unwrap()
+            .unwrap();
+        let state = store.state(CHAT).unwrap();
+        let recorded = state.get("cuckold_user").copied().unwrap_or_default();
+        assert_that!(recorded)
+            .named("cuckold_user recorded by the draw")
+            .is_equal_to(drawn.user);
+        let again = roll(&store, CHAT, at(7, 18), &mut seeded())
+            .unwrap()
+            .unwrap();
+        assert_that!(again.user)
+            .named("winner repeated later the same day")
+            .is_equal_to(drawn.user);
     }
 
     #[test]
