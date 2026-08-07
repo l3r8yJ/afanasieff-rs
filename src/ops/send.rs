@@ -36,7 +36,7 @@ pub async fn send_reply_message_set_reaction(
     }
 }
 
-fn remember(store: &Store, sent: &Message, quote: Option<i64>) {
+pub(crate) fn remember(store: &Store, sent: &Message, quote: Option<i64>) {
     let Some(author) = sent.from.as_ref() else {
         return;
     };
