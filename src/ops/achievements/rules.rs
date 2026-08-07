@@ -338,43 +338,40 @@ mod tests {
         Owned,
     }
 
+    fn fixture_for(achievement: Achievement) -> Fixture {
+        match achievement {
+            Achievement::Terpim => Fixture::Counter("unanswered_streak"),
+            Achievement::Opravdan => Fixture::Counter("apologies"),
+            Achievement::OdinNaOdin => Fixture::Counter("chain_len"),
+            Achievement::Shorty => Fixture::Counter("longest_message"),
+            Achievement::Potolok => Fixture::Counter("night_messages"),
+            Achievement::Belogvardeec => Fixture::Counter("politics"),
+            Achievement::Vpn => Fixture::Counter("ignored_pings"),
+            Achievement::Gavnil => Fixture::Counter("bot_replies"),
+            Achievement::Lysina => Fixture::Counter("vinograd_mentions"),
+            Achievement::SsalStream => Fixture::Counter("stream_mentions"),
+            Achievement::Haha => Fixture::Counter("laugh_only"),
+            Achievement::Robot => Fixture::Counter("replies_to_bot"),
+            Achievement::VseZanyaty => Fixture::Counter("unanswered_calls"),
+            Achievement::Klon => Fixture::Counter("monologues"),
+            Achievement::Ivanchuk => Fixture::Counter("mention:1"),
+            Achievement::Sofizm => Fixture::Counter("long_messages"),
+            Achievement::Petukh => Fixture::Owned,
+            Achievement::CuckoldVZakone => Fixture::Counter("cuckold_days"),
+            Achievement::Dinastiya => Fixture::Counter("cuckold_best"),
+        }
+    }
+
     #[test]
     fn unlocks_every_achievement_at_exactly_its_own_threshold() {
-        let cases: &[(Achievement, Fixture)] = &[
-            (Achievement::Terpim, Fixture::Counter("unanswered_streak")),
-            (Achievement::Opravdan, Fixture::Counter("apologies")),
-            (Achievement::OdinNaOdin, Fixture::Counter("chain_len")),
-            (Achievement::Shorty, Fixture::Counter("longest_message")),
-            (Achievement::Potolok, Fixture::Counter("night_messages")),
-            (Achievement::Belogvardeec, Fixture::Counter("politics")),
-            (Achievement::Vpn, Fixture::Counter("ignored_pings")),
-            (Achievement::Gavnil, Fixture::Counter("bot_replies")),
-            (Achievement::Lysina, Fixture::Counter("vinograd_mentions")),
-            (Achievement::SsalStream, Fixture::Counter("stream_mentions")),
-            (Achievement::Haha, Fixture::Counter("laugh_only")),
-            (Achievement::Robot, Fixture::Counter("replies_to_bot")),
-            (
-                Achievement::VseZanyaty,
-                Fixture::Counter("unanswered_calls"),
-            ),
-            (Achievement::Klon, Fixture::Counter("monologues")),
-            (Achievement::Ivanchuk, Fixture::Counter("mention:1")),
-            (Achievement::Sofizm, Fixture::Counter("long_messages")),
-            (Achievement::Petukh, Fixture::Owned),
-            (
-                Achievement::CuckoldVZakone,
-                Fixture::Counter("cuckold_days"),
-            ),
-            (Achievement::Dinastiya, Fixture::Counter("cuckold_best")),
-        ];
-        for (achievement, fixture) in cases {
-            let given = match fixture {
+        for achievement in Achievement::ALL.iter().copied() {
+            let given = match fixture_for(achievement) {
                 Fixture::Counter(key) => {
                     let threshold = achievement
                         .progress(&Stats::new(HashMap::new()))
                         .expect("a counter achievement reports its own threshold")
                         .1;
-                    unlocked(&stats(&[(*key, threshold)]), &HashSet::new())
+                    unlocked(&stats(&[(key, threshold)]), &HashSet::new())
                 }
                 Fixture::Owned => {
                     let owned = Achievement::ALL
