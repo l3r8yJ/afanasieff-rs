@@ -4,6 +4,7 @@ use afanasieff_rs::handler_tree;
 use afanasieff_rs::ops::consts::STREAM_SOURCE;
 use afanasieff_rs::ops::store::Store;
 use asserting::prelude::*;
+use teloxide::utils::html::escape;
 use teloxide_tests::{MockBot, MockMessageText};
 
 const DEFAULT_CHAT: i64 = 12_345_678;
@@ -45,7 +46,7 @@ async fn shows_locked_and_unlocked_achievements_of_the_caller() {
 
 #[tokio::test]
 async fn falls_through_to_the_quote_branch_when_text_merely_mentions_achievements() {
-    unsafe { std::env::set_var("AFANASIEFF_GENERATED_ON_KEYWORD", "0") };
+    afanasieff_rs::ops::chance::set_generated_on_keyword_for_tests(0);
     let store = Arc::new(Store::in_memory().unwrap());
     let answer = answer_of("achievements упоминают стрим", &store).await;
     let stream_quotes = store
@@ -189,11 +190,17 @@ async fn says_so_when_nobody_collected_anything() {
 async fn answers_with_a_phrase_that_is_not_a_quote() {
     let store = Arc::new(Store::in_memory().unwrap());
     let answer = answer_of("/bred", &store).await;
-    let quotes = store.all_quotes().expect("the quotes are readable");
+    let escaped_quotes = store
+        .all_quotes()
+        .expect("the quotes are readable")
+        .iter()
+        .map(|quote| escape(quote))
+        .collect::<Vec<String>>();
     assert_that!(answer.as_str())
         .named("generated phrase")
-        .is_not_empty();
-    assert_that!(quotes)
-        .named("quotes")
+        .is_not_empty()
+        .is_not_equal_to("Нечего сказать. Терпим.");
+    assert_that!(escaped_quotes)
+        .named("escaped quotes")
         .does_not_contain(answer);
 }

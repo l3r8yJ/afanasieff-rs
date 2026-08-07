@@ -20,8 +20,6 @@ pub async fn start_cron(bot: Bot, store: Arc<Store>, shutdown: CancellationToken
     }
 }
 
-const GENERATED_IN_CRON: f64 = 0.25;
-
 async fn send_to_every_chat(bot: &Bot, store: &Store) {
     let chats = match store.chats() {
         Ok(chats) => chats,
@@ -31,7 +29,7 @@ async fn send_to_every_chat(bot: &Bot, store: &Store) {
         }
     };
     for id in chats {
-        let generated = if rng().random_bool(GENERATED_IN_CRON) {
+        let generated = if rng().random_bool(crate::ops::chance::generated_in_cron()) {
             match store.all_quotes() {
                 Ok(corpus) => crate::ops::markov::generate(&corpus, &mut rng()),
                 Err(error) => {
