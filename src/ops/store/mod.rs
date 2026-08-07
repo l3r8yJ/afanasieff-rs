@@ -98,7 +98,8 @@ impl Store {
                 .prepare("SELECT text FROM quotes WHERE source = ?1")
                 .with_context(|| format!("preparing the read of quotes of source '{source}'"))?;
             let quotes = statement
-                .query_map(params![source], |row| row.get(0))?
+                .query_map(params![source], |row| row.get(0))
+                .with_context(|| format!("querying quotes of source '{source}'"))?
                 .collect::<rusqlite::Result<Vec<String>>>()
                 .with_context(|| format!("reading quotes of source '{source}'"))?;
             Ok(quotes)
@@ -133,7 +134,8 @@ impl Store {
                 .prepare("SELECT id FROM chats")
                 .context("preparing the read of every chat")?;
             let chats = statement
-                .query_map([], |row| row.get(0))?
+                .query_map([], |row| row.get(0))
+                .context("querying every chat")?
                 .collect::<rusqlite::Result<Vec<i64>>>()
                 .context("reading every chat")?;
             Ok(chats)
@@ -252,7 +254,8 @@ impl Store {
                 .prepare("SELECT text FROM quotes")
                 .context("preparing the read of every quote")?;
             let quotes = statement
-                .query_map([], |row| row.get(0))?
+                .query_map([], |row| row.get(0))
+                .context("querying every quote")?
                 .collect::<rusqlite::Result<Vec<String>>>()
                 .context("reading every quote")?;
             Ok(quotes)

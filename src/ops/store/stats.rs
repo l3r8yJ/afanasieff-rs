@@ -85,7 +85,10 @@ impl Store {
                     )
                 })?;
             let rows = statement
-                .query_map(params![chat, user], |row| Ok((row.get(0)?, row.get(1)?)))?
+                .query_map(params![chat, user], |row| Ok((row.get(0)?, row.get(1)?)))
+                .with_context(|| {
+                    format!("querying every counter of member '{user}' in chat '{chat}'")
+                })?
                 .collect::<rusqlite::Result<HashMap<String, i64>>>()
                 .with_context(|| {
                     format!("reading every counter of member '{user}' in chat '{chat}'")
@@ -198,7 +201,8 @@ impl Store {
                     format!("preparing the read of every state value of chat '{chat}'")
                 })?;
             let rows = statement
-                .query_map(params![chat], |row| Ok((row.get(0)?, row.get(1)?)))?
+                .query_map(params![chat], |row| Ok((row.get(0)?, row.get(1)?)))
+                .with_context(|| format!("querying every state value of chat '{chat}'"))?
                 .collect::<rusqlite::Result<HashMap<String, i64>>>()
                 .with_context(|| format!("reading every state value of chat '{chat}'"))?;
             Ok(rows)
@@ -236,7 +240,10 @@ impl Store {
                     format!("preparing the read of achievements owned by member '{user}' in chat '{chat}'")
                 })?;
             let rows = statement
-                .query_map(params![chat, user], |row| row.get(0))?
+                .query_map(params![chat, user], |row| row.get(0))
+                .with_context(|| {
+                    format!("querying achievements owned by member '{user}' in chat '{chat}'")
+                })?
                 .collect::<rusqlite::Result<HashSet<String>>>()
                 .with_context(|| {
                     format!("reading achievements owned by member '{user}' in chat '{chat}'")
@@ -397,7 +404,8 @@ impl Store {
                         name: row.get(1)?,
                         count: row.get(2)?,
                     })
-                })?
+                })
+                .with_context(|| format!("querying the leaderboard of chat '{chat}'"))?
                 .collect::<rusqlite::Result<Vec<Standing>>>()
                 .with_context(|| format!("reading the leaderboard of chat '{chat}'"))?;
             Ok(standings)
@@ -427,7 +435,8 @@ impl Store {
                         user: row.get(0)?,
                         name: row.get(1)?,
                     })
-                })?
+                })
+                .with_context(|| format!("querying active members of chat '{chat}'"))?
                 .collect::<rusqlite::Result<Vec<Member>>>()
                 .with_context(|| format!("reading active members of chat '{chat}'"))?;
             Ok(members)
@@ -459,6 +468,9 @@ impl Store {
                         name: row.get(1)?,
                         count: row.get(2)?,
                     })
+                })
+                .with_context(|| {
+                    format!("querying the ranking of chat '{chat}' by counter '{key}'")
                 })?
                 .collect::<rusqlite::Result<Vec<Standing>>>()
                 .with_context(|| {
