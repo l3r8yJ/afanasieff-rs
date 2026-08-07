@@ -8,7 +8,7 @@ use teloxide::Bot;
 use teloxide::payloads::{EditMessageTextSetters, SendMessageSetters};
 use teloxide::prelude::Requester;
 use teloxide::types::{Message, ParseMode};
-use teloxide::utils::html::user_mention;
+use teloxide::utils::html::{escape, user_mention};
 
 use crate::ops::error::Error;
 use crate::ops::store::Store;
@@ -166,6 +166,62 @@ async fn sleep() {
     let millis = DRUMROLL.load(Ordering::Relaxed);
     if millis > 0 {
         tokio::time::sleep(StdDuration::from_millis(millis)).await;
+    }
+}
+
+const MEDALS: &[&str] = &["🥇", "🥈", "🥉"];
+
+/// Renders how often each member of the chat has been the cuckold.
+#[must_use]
+pub fn stats(message: &Message, store: &Store) -> String {
+    let chat = message.chat.id.0;
+    let ranked = store.ranking(chat, "cuckold_days").unwrap_or_default();
+    if ranked.is_empty() {
+        return "🏆 <b>Куколды чата</b>\n\nНикто ещё не был куколдом. Терпим.".to_string();
+    }
+    let lines = ranked
+        .iter()
+        .enumerate()
+        .map(|(place, standing)| {
+            let rank = MEDALS
+                .get(place)
+                .map_or_else(|| format!("{}.", place + 1), |medal| (*medal).to_string());
+            let name = standing
+                .name
+                .clone()
+                .unwrap_or_else(|| standing.user.to_string());
+            let best = store
+                .stat(chat, standing.user, "cuckold_best")
+                .unwrap_or_default();
+            let run = if best > 1 {
+                format!(" · лучшая серия {best}")
+            } else {
+                String::new()
+            };
+            format!(
+                "{rank} <b>{}</b> · {} раз{run}",
+                escape(&name),
+                standing.count
+            )
+        })
+        .collect::<Vec<String>>()
+        .join("\n");
+    format!("🏆 <b>Куколды чата</b>\n\n{lines}{}", today(message, store))
+}
+
+fn today(message: &Message, store: &Store) -> String {
+    let chat = message.chat.id.0;
+    let Ok(state) = store.state(chat) else {
+        return String::new();
+    };
+    let drawn_on = state.get("cuckold_day").copied().unwrap_or_default();
+    let drawn = state.get("cuckold_user").copied().unwrap_or_default();
+    if drawn == 0 || drawn_on != day_of(message.date) {
+        return String::new();
+    }
+    match store.member_name(chat, drawn) {
+        Ok(Some(name)) => format!("\n\nСегодня: {}", escape(&name)),
+        Ok(None) | Err(_) => String::new(),
     }
 }
 
