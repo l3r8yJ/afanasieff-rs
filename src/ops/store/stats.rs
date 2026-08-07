@@ -271,6 +271,43 @@ impl Store {
     }
 }
 
+pub struct Standing {
+    pub user: i64,
+    pub name: Option<String>,
+    pub owned: i64,
+}
+
+impl Store {
+    /// Returns the members of the chat ranked by how many achievements they
+    /// own, the one who got there first ahead on a tie.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn leaderboard(&self, chat: i64) -> rusqlite::Result<Vec<Standing>> {
+        self.with(|connection| {
+            let mut statement = connection.prepare(
+                "SELECT a.user_id, m.first_name, COUNT(*) AS owned, MAX(a.unlocked_at) AS latest \
+                 FROM achievements a \
+                 LEFT JOIN members m ON m.chat_id = a.chat_id AND m.user_id = a.user_id \
+                 WHERE a.chat_id = ?1 \
+                 GROUP BY a.user_id \
+                 ORDER BY owned DESC, latest ASC",
+            )?;
+            let standings = statement
+                .query_map(params![chat], |row| {
+                    Ok(Standing {
+                        user: row.get(0)?,
+                        name: row.get(1)?,
+                        owned: row.get(2)?,
+                    })
+                })?
+                .collect::<rusqlite::Result<Vec<Standing>>>()?;
+            Ok(standings)
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use asserting::prelude::*;

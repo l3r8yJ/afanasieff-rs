@@ -97,3 +97,89 @@ async fn orders_locked_achievements_by_closeness_to_their_threshold_with_the_met
         .named("position of the farthest achievement")
         .is_less_than(meta);
 }
+
+#[tokio::test]
+async fn ranks_members_by_how_many_achievements_they_own() {
+    let store = Arc::new(Store::in_memory().unwrap());
+    store
+        .upsert_member(
+            DEFAULT_CHAT,
+            1,
+            Some("first"),
+            "Первый",
+            "2026-08-07T10:00:00Z",
+        )
+        .unwrap();
+    store
+        .upsert_member(
+            DEFAULT_CHAT,
+            2,
+            Some("second"),
+            "Второй",
+            "2026-08-07T10:00:00Z",
+        )
+        .unwrap();
+    store
+        .unlock(DEFAULT_CHAT, 1, "terpim", "2026-08-01T10:00:00Z")
+        .unwrap();
+    store
+        .unlock(DEFAULT_CHAT, 1, "haha", "2026-08-02T10:00:00Z")
+        .unwrap();
+    store
+        .unlock(DEFAULT_CHAT, 2, "robot", "2026-08-01T10:00:00Z")
+        .unwrap();
+    let answer = answer_of("/top", &store).await;
+    let first = answer.find("Первый").expect("the leader is listed");
+    let second = answer.find("Второй").expect("the runner up is listed");
+    assert_that!(answer.as_str())
+        .named("leaderboard")
+        .contains("🥇")
+        .contains("2 из 17");
+    assert_that!(first)
+        .named("position of the leader")
+        .is_less_than(second);
+}
+
+#[tokio::test]
+async fn puts_the_earlier_finisher_first_on_a_tie() {
+    let store = Arc::new(Store::in_memory().unwrap());
+    store
+        .upsert_member(
+            DEFAULT_CHAT,
+            1,
+            Some("late"),
+            "Поздний",
+            "2026-08-07T10:00:00Z",
+        )
+        .unwrap();
+    store
+        .upsert_member(
+            DEFAULT_CHAT,
+            2,
+            Some("early"),
+            "Ранний",
+            "2026-08-07T10:00:00Z",
+        )
+        .unwrap();
+    store
+        .unlock(DEFAULT_CHAT, 1, "terpim", "2026-08-05T10:00:00Z")
+        .unwrap();
+    store
+        .unlock(DEFAULT_CHAT, 2, "haha", "2026-08-01T10:00:00Z")
+        .unwrap();
+    let answer = answer_of("/top", &store).await;
+    let early = answer.find("Ранний").expect("the early finisher is listed");
+    let late = answer.find("Поздний").expect("the late finisher is listed");
+    assert_that!(early)
+        .named("position of the earlier finisher")
+        .is_less_than(late);
+}
+
+#[tokio::test]
+async fn says_so_when_nobody_collected_anything() {
+    let store = Arc::new(Store::in_memory().unwrap());
+    let answer = answer_of("/top", &store).await;
+    assert_that!(answer.as_str())
+        .named("empty leaderboard")
+        .contains("Пока никто ничего не собрал");
+}

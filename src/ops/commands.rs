@@ -22,6 +22,8 @@ pub enum Command {
     Achievements,
     #[command(description = "что открыто у тебя, а что нет")]
     MyAchievements,
+    #[command(description = "кто сколько ачивок собрал")]
+    Top,
 }
 
 /// Answers the achievement commands.
@@ -38,6 +40,7 @@ pub async fn answer(
     let text = match command {
         Command::Achievements => catalogue(),
         Command::MyAchievements => personal(&message, &store),
+        Command::Top => top(&message, &store),
     };
     bot.send_message(message.chat.id, text)
         .parse_mode(ParseMode::Html)
@@ -142,4 +145,34 @@ fn day_of(timestamp: &str) -> String {
     chrono::DateTime::parse_from_rfc3339(timestamp)
         .map(|parsed| parsed.format("%d.%m.%Y").to_string())
         .unwrap_or_else(|_| timestamp.to_string())
+}
+
+const MEDALS: &[&str] = &["🥇", "🥈", "🥉"];
+
+fn top(message: &Message, store: &Store) -> String {
+    let standings = store.leaderboard(message.chat.id.0).unwrap_or_default();
+    if standings.is_empty() {
+        return "🏆 <b>Ачивки чата</b>\n\nПока никто ничего не собрал. Терпим.".to_string();
+    }
+    let lines = standings
+        .iter()
+        .enumerate()
+        .map(|(place, standing)| {
+            let rank = MEDALS
+                .get(place)
+                .map_or_else(|| format!("{}.", place + 1), |medal| (*medal).to_string());
+            let name = standing
+                .name
+                .clone()
+                .unwrap_or_else(|| standing.user.to_string());
+            format!(
+                "{rank} <b>{}</b> · {} из {}",
+                escape(&name),
+                standing.owned,
+                Achievement::ALL.len()
+            )
+        })
+        .collect::<Vec<String>>()
+        .join("\n");
+    format!("🏆 <b>Ачивки чата</b>\n\n{lines}")
 }
