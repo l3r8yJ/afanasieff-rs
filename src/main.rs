@@ -8,6 +8,7 @@ use std::sync::Arc;
 use afanasieff_rs::ops::commands::Command;
 use afanasieff_rs::ops::store::Store;
 use afanasieff_rs::{cron, handler_tree};
+use anyhow::Context;
 use teloxide::prelude::Requester;
 use teloxide::utils::command::BotCommands;
 use teloxide::{Bot, dptree, prelude::Dispatcher};
@@ -15,15 +16,19 @@ use tokio::signal::unix::{SignalKind, signal};
 use tokio_util::sync::CancellationToken;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     pretty_env_logger::init();
     log::info!("Starting the bot...");
     let bot = Bot::from_env();
-    let path = database_path();
+    let path = database_path()?;
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).expect("the database directory is creatable");
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("creating the database directory '{}'", parent.display()))?;
     }
-    let store = Arc::new(Store::open(&path).expect("the database opens and migrates at startup"));
+    let store = Arc::new(
+        Store::open(&path)
+            .with_context(|| format!("opening the database at '{}'", path.display()))?,
+    );
     match bot.set_my_commands(Command::bot_commands()).await {
         Ok(_) => log::info!("commands registered: '{:?}'", Command::bot_commands()),
         Err(error) => log::error!("commands were not registered: '{error}'"),
@@ -45,7 +50,8 @@ async fn main() {
         })
         .enable_ctrlc_handler()
         .build();
-    let mut terminate = signal(SignalKind::terminate()).expect("SIGTERM handler installs");
+    let mut terminate =
+        signal(SignalKind::terminate()).context("installing the SIGTERM handler")?;
     tokio::select! {
         () = dispatcher.dispatch() => {},
         _ = terminate.recv() => log::info!("received SIGTERM, shutting down"),
@@ -57,12 +63,13 @@ async fn main() {
     if let Err(error) = promoting.await {
         log::error!("the promotion task ended badly: '{error}'");
     }
+    Ok(())
 }
 
-fn database_path() -> PathBuf {
+fn database_path() -> anyhow::Result<PathBuf> {
     if let Ok(path) = std::env::var("AFANASIEFF_DB") {
-        return PathBuf::from(path);
+        return Ok(PathBuf::from(path));
     }
-    let home = std::env::var("HOME").expect("HOME is set for the service user");
-    PathBuf::from(home).join(".local/state/afanasieff/afanasieff.db")
+    let home = std::env::var("HOME").context("reading HOME to locate the database")?;
+    Ok(PathBuf::from(home).join(".local/state/afanasieff/afanasieff.db"))
 }
