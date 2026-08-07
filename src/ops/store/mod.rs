@@ -73,7 +73,7 @@ impl Store {
             connection
                 .query_row(
                     "SELECT id, text FROM quotes WHERE source = ?1 \
-                     ORDER BY (score + 1) * (ABS(RANDOM()) % 1000) DESC LIMIT 1",
+                     ORDER BY (MIN(score, 20) + 1) * (ABS(RANDOM()) % 1000) DESC LIMIT 1",
                     params![source],
                     |row| Ok((row.get(0)?, row.get(1)?)),
                 )
@@ -503,6 +503,31 @@ mod tests {
         assert_that!(often)
             .named("draws of the higher scored quote")
             .is_greater_than(100);
+    }
+
+    #[test]
+    fn keeps_a_zero_score_quote_reachable_against_an_absurd_rival_score() {
+        let store = store();
+        store
+            .with(|connection| connection.execute_batch("DELETE FROM quotes"))
+            .unwrap();
+        store
+            .with(|connection| {
+                connection.execute_batch(
+                    "INSERT INTO quotes (source, text, score) VALUES ('matthew', 'обычная', 0); \
+                     INSERT INTO quotes (source, text, score) VALUES ('matthew', 'звезда', 1000000);",
+                )
+            })
+            .unwrap();
+        let mut drawn = 0;
+        for _ in 0..500 {
+            if store.random_quote("matthew").unwrap().as_deref() == Some("обычная") {
+                drawn += 1;
+            }
+        }
+        assert_that!(drawn)
+            .named("draws of the zero-score quote against an absurd rival score")
+            .is_greater_than(0);
     }
 
     #[test]
