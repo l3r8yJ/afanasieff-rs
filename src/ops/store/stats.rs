@@ -206,6 +206,8 @@ impl Store {
 
 #[cfg(test)]
 mod tests {
+    use asserting::prelude::*;
+
     use crate::ops::store::Store;
 
     fn store() -> Store {
@@ -217,10 +219,9 @@ mod tests {
         let store = store();
         store.bump(42, 7, "messages", 1).unwrap();
         let value = store.bump(42, 7, "messages", 1).unwrap();
-        assert_eq!(
-            value, 2,
-            "counter after two bumps was '{value}', expected '2'"
-        );
+        assert_that!(value)
+            .named("counter after two bumps")
+            .is_equal_to(2);
     }
 
     #[test]
@@ -230,22 +231,21 @@ mod tests {
         store.bump(42, 8, "messages", 1).unwrap();
         let seven = store.stat(42, 7, "messages").unwrap();
         let eight = store.stat(42, 8, "messages").unwrap();
-        assert_eq!(
-            (seven, eight),
-            (5, 1),
-            "counters were '{:?}', expected '(5, 1)'",
-            (seven, eight)
-        );
+        assert_that!(seven)
+            .named("member seven's counter")
+            .is_equal_to(5);
+        assert_that!(eight)
+            .named("member eight's counter")
+            .is_equal_to(1);
     }
 
     #[test]
     fn reports_zero_for_a_counter_that_was_never_bumped() {
         let store = store();
         let value = store.stat(42, 7, "night_messages").unwrap();
-        assert_eq!(
-            value, 0,
-            "counter that was never bumped was '{value}', expected '0'"
-        );
+        assert_that!(value)
+            .named("counter that was never bumped")
+            .is_equal_to(0);
     }
 
     #[test]
@@ -254,7 +254,9 @@ mod tests {
         store.bump(42, 7, "longest_message", 100).unwrap();
         store.set_stat(42, 7, "longest_message", 40).unwrap();
         let value = store.stat(42, 7, "longest_message").unwrap();
-        assert_eq!(value, 40, "counter after set was '{value}', expected '40'");
+        assert_that!(value)
+            .named("counter after set")
+            .is_equal_to(40);
     }
 
     #[test]
@@ -266,14 +268,12 @@ mod tests {
         let stats = store.stats(42, 7).unwrap();
         let mut keys = stats.keys().cloned().collect::<Vec<String>>();
         keys.sort();
-        assert_eq!(
-            (keys.as_slice(), stats.get("messages").copied()),
-            (
-                ["mat".to_string(), "messages".to_string()].as_slice(),
-                Some(3)
-            ),
-            "stats of member seven were '{stats:?}', expected only their own two counters"
-        );
+        assert_that!(keys)
+            .named("member seven's stat keys")
+            .contains_exactly(["mat".to_string(), "messages".to_string()]);
+        assert_that!(stats.get("messages").copied())
+            .named("member seven's message counter")
+            .is_equal_to(Some(3));
     }
 
     #[test]
@@ -283,11 +283,9 @@ mod tests {
             .upsert_member(42, 7, Some("MatthewAFN"), "Матвей", "2026-08-06T10:00:00Z")
             .unwrap();
         let found = store.member_by_username(42, "matthewafn").unwrap();
-        assert_eq!(
-            found,
-            Some(7),
-            "member resolved by username was '{found:?}', expected 'Some(7)'"
-        );
+        assert_that!(found)
+            .named("member resolved by username")
+            .is_equal_to(Some(7));
     }
 
     #[test]
@@ -301,12 +299,12 @@ mod tests {
             .unwrap();
         let by_old = store.member_by_username(42, "old").unwrap();
         let by_new = store.member_by_username(42, "new").unwrap();
-        assert_eq!(
-            (by_old, by_new),
-            (None, Some(7)),
-            "member after the second upsert resolved to '{:?}', expected the old username gone and the new one resolving to '7'",
-            (by_old, by_new)
-        );
+        assert_that!(by_old)
+            .named("member resolved by the old username")
+            .is_none();
+        assert_that!(by_new)
+            .named("member resolved by the new username")
+            .is_equal_to(Some(7));
     }
 
     #[test]
@@ -317,16 +315,12 @@ mod tests {
         store.set_state(42, "last_message_id", 101).unwrap();
         let first = store.state(42).unwrap();
         let second = store.state(-100).unwrap();
-        assert_eq!(
-            (
-                first.get("last_message_id").copied(),
-                second.get("last_message_id").copied()
-            ),
-            (Some(101), Some(7)),
-            "chat state was '{:?}' and '{:?}', expected '101' and '7'",
-            first,
-            second
-        );
+        assert_that!(first.get("last_message_id").copied())
+            .named("chat 42's last message id")
+            .is_equal_to(Some(101));
+        assert_that!(second.get("last_message_id").copied())
+            .named("chat -100's last message id")
+            .is_equal_to(Some(7));
     }
 
     #[test]
@@ -338,12 +332,10 @@ mod tests {
         let again = store
             .unlock(42, 7, "terpim", "2026-08-06T11:00:00Z")
             .unwrap();
-        assert_eq!(
-            (first, again),
-            (true, false),
-            "unlocking twice reported '{:?}', expected '(true, false)'",
-            (first, again)
-        );
+        assert_that!(first).named("first unlock").is_true();
+        assert_that!(again)
+            .named("second unlock of the same achievement")
+            .is_false();
     }
 
     #[test]
@@ -359,10 +351,8 @@ mod tests {
         let owned = store.owned(42, 7).unwrap();
         let mut codes = owned.iter().cloned().collect::<Vec<String>>();
         codes.sort();
-        assert_eq!(
-            codes,
-            vec!["haha".to_string(), "terpim".to_string()],
-            "owned codes were '{codes:?}', expected only the two of member seven"
-        );
+        assert_that!(codes)
+            .named("owned codes")
+            .contains_exactly(["haha".to_string(), "terpim".to_string()]);
     }
 }

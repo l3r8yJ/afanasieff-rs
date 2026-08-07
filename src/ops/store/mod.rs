@@ -212,6 +212,8 @@ impl Store {
 
 #[cfg(test)]
 mod tests {
+    use asserting::prelude::*;
+
     use super::{MIGRATIONS, Store};
 
     fn store() -> Store {
@@ -223,10 +225,9 @@ mod tests {
         let store = store();
         for source in ["stream", "matthew", "vinograd"] {
             let stored = store.quotes_of(source);
-            assert!(
-                stored > 0,
-                "quotes of source '{source}' were '{stored}', expected more than '0'"
-            );
+            assert_that!(stored)
+                .named("stored quotes")
+                .is_greater_than(0);
         }
     }
 
@@ -243,20 +244,18 @@ mod tests {
                 )
             })
             .unwrap();
-        assert_eq!(
-            source, "vinograd",
-            "quote '{quote}' came from source '{source}', expected 'vinograd'"
-        );
+        assert_that!(source)
+            .named("source of the returned quote")
+            .is_equal_to("vinograd");
     }
 
     #[test]
     fn returns_no_quote_of_unknown_source() {
         let store = store();
         let quote = store.random_quote("stepan").unwrap();
-        assert!(
-            quote.is_none(),
-            "quote of unknown source was '{quote:?}', expected none"
-        );
+        assert_that!(quote)
+            .named("quote of an unknown source")
+            .is_none();
     }
 
     #[test]
@@ -265,10 +264,9 @@ mod tests {
         let before = store.quotes_of("matthew");
         store.with(super::migrate).unwrap();
         let after = store.quotes_of("matthew");
-        assert_eq!(
-            after, before,
-            "quotes of source 'matthew' after a second migrate were '{after}', expected '{before}'"
-        );
+        assert_that!(after)
+            .named("quotes of source 'matthew' after a second migrate")
+            .is_equal_to(before);
     }
 
     #[test]
@@ -277,12 +275,9 @@ mod tests {
         let applied: usize = store
             .with(|connection| connection.query_row("PRAGMA user_version", [], |row| row.get(0)))
             .unwrap();
-        assert_eq!(
-            applied,
-            MIGRATIONS.len(),
-            "applied migrations were '{applied}', expected '{}'",
-            MIGRATIONS.len()
-        );
+        assert_that!(applied)
+            .named("applied migrations")
+            .is_equal_to(MIGRATIONS.len());
     }
 
     #[test]
@@ -293,11 +288,9 @@ mod tests {
         store.remember_chat(-100).unwrap();
         let mut remembered = store.chats().unwrap();
         remembered.sort_unstable();
-        assert_eq!(
-            remembered,
-            vec![-100, 42],
-            "remembered chats were '{remembered:?}', expected '[-100, 42]'"
-        );
+        assert_that!(remembered)
+            .named("remembered chats")
+            .contains_exactly([-100, 42]);
     }
 
     #[test]
@@ -319,10 +312,9 @@ mod tests {
                 })
             })
             .unwrap();
-        assert_eq!(
-            stored, 2,
-            "stored messages count was '{stored}', expected '2'"
-        );
+        assert_that!(stored)
+            .named("stored messages count")
+            .is_equal_to(2);
     }
 
     #[test]
@@ -354,22 +346,24 @@ mod tests {
                 )
             })
             .unwrap();
-        assert_eq!(
-            (promoted.as_str(), waiting, quoted),
-            ("первое", 1, 1),
-            "promotion reported '{promoted}' with '{waiting}' waiting and '{quoted}' quoted, \
-             expected 'первое' with '1' waiting and '1' quoted"
-        );
+        assert_that!(promoted.as_str())
+            .named("promoted text")
+            .is_equal_to("первое");
+        assert_that!(waiting)
+            .named("messages still waiting")
+            .is_equal_to(1);
+        assert_that!(quoted)
+            .named("quotes stored under 'stream'")
+            .is_equal_to(1);
     }
 
     #[test]
     fn promotes_nothing_when_no_matthew_message_waits() {
         let store = store();
         let promoted = store.promote_oldest_matthew_message("stream").unwrap();
-        assert!(
-            promoted.is_none(),
-            "promotion of an empty table reported '{promoted:?}', expected none"
-        );
+        assert_that!(promoted)
+            .named("promotion of an empty table")
+            .is_none();
     }
 
     #[test]
@@ -381,11 +375,9 @@ mod tests {
         let again = store
             .store_matthew_message(42, 7, "2026-07-30T17:00:00Z", "терпим")
             .unwrap();
-        assert_eq!(
-            (first, again),
-            (true, false),
-            "storing the same message twice reported '{:?}', expected '(true, false)'",
-            (first, again)
-        );
+        assert_that!(first).named("first store").is_true();
+        assert_that!(again)
+            .named("second store of the same message")
+            .is_false();
     }
 }
