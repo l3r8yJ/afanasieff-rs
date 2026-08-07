@@ -60,13 +60,22 @@ impl Store {
     ///
     /// Returns an error when the query cannot be executed.
     pub fn random_quote(&self, source: &str) -> rusqlite::Result<Option<String>> {
+        Ok(self.random_quote_with_id(source)?.map(|(_, text)| text))
+    }
+
+    /// Returns a random quote of the given source together with its identifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn random_quote_with_id(&self, source: &str) -> rusqlite::Result<Option<(i64, String)>> {
         self.with(|connection| {
             connection
                 .query_row(
-                    "SELECT text FROM quotes WHERE source = ?1 \
+                    "SELECT id, text FROM quotes WHERE source = ?1 \
                      ORDER BY (score + 1) * (ABS(RANDOM()) % 1000) DESC LIMIT 1",
                     params![source],
-                    |row| row.get(0),
+                    |row| Ok((row.get(0)?, row.get(1)?)),
                 )
                 .optional()
         })

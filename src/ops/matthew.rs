@@ -39,8 +39,8 @@ pub async fn send_random_matthew_quote(
 ///
 /// Returns an error when the quote cannot be read from the store.
 pub async fn reply_with_quote(bot: &Bot, message: &Message, store: &Store) -> Result<(), Error> {
-    if let Some(quote) = store.random_quote(MATTHEW_SOURCE)? {
-        send_reply_message_set_reaction(&quote, "💔", bot, message).await;
+    if let Some((id, quote)) = store.random_quote_with_id(MATTHEW_SOURCE)? {
+        send_reply_message_set_reaction(&quote, "💔", bot, message, store, Some(id)).await;
         record_bot_reply(store, message);
     }
     Ok(())

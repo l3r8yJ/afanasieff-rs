@@ -16,6 +16,15 @@ pub fn observe(store: &Store, update: Update) {
         return;
     }
     log::info!("chat id: '{chat}' remembered");
+    if let Some(author) = message.from.as_ref() {
+        let user = i64::try_from(author.id.0).unwrap_or(i64::MAX);
+        if let Err(error) = store.remember_message(chat, message.id.0, user, None) {
+            log::error!(
+                "message '{}' in chat '{chat}' was not remembered: '{error}'",
+                message.id.0
+            );
+        }
+    }
     collect_matthew_message(store, &message, chat);
 }
 

@@ -18,6 +18,13 @@ fn update_from(message: MockMessageText) -> teloxide::types::Update {
         .expect("one update is produced")
 }
 
+fn update_of(message: teloxide::types::Message) -> teloxide::types::Update {
+    teloxide::types::Update {
+        id: teloxide::types::UpdateId(1),
+        kind: teloxide::types::UpdateKind::Message(message),
+    }
+}
+
 #[test]
 fn collects_a_long_message_written_by_matthew() {
     let store = Store::in_memory().unwrap();
@@ -106,5 +113,24 @@ fn collects_the_same_message_id_only_once() {
         .unwrap();
     assert_that!(second)
         .named("the second promotion of the same message id")
+        .is_none();
+}
+
+#[test]
+fn remembers_who_wrote_an_observed_message() {
+    let store = Store::in_memory().unwrap();
+    let message = MockMessageText::new()
+        .text("обычное сообщение")
+        .from(MockUser::new().id(7u64).build())
+        .id(5i32)
+        .build();
+    let chat = message.chat.id.0;
+    afanasieff_rs::ops::intake::observe(&store, update_of(message));
+    let owner = store.message_owner(chat, 5).unwrap().unwrap();
+    assert_that!(owner.user)
+        .named("remembered author")
+        .is_equal_to(7);
+    assert_that!(owner.quote)
+        .named("quote of a plain message")
         .is_none();
 }

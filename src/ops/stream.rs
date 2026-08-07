@@ -26,8 +26,8 @@ pub async fn send_random_stream_quote(
     message: Message,
     store: Arc<Store>,
 ) -> Result<(), Error> {
-    if let Some(quote) = store.random_quote(STREAM_SOURCE)? {
-        send_reply_message_set_reaction(&quote, "🤡", &bot, &message).await;
+    if let Some((id, quote)) = store.random_quote_with_id(STREAM_SOURCE)? {
+        send_reply_message_set_reaction(&quote, "🤡", &bot, &message, &store, Some(id)).await;
         record_bot_reply(&store, &message);
     }
     Ok(())
