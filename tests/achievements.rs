@@ -3,6 +3,7 @@ use afanasieff_rs::ops::achievements::apply::apply;
 use afanasieff_rs::ops::achievements::event::{Event, Mention};
 use afanasieff_rs::ops::achievements::record_bot_reply;
 use afanasieff_rs::ops::store::Store;
+use asserting::prelude::*;
 use chrono::{TimeZone, Utc};
 use std::sync::Arc;
 use teloxide::types::{MessageEntity, MessageEntityKind, Update, UpdateId, UpdateKind, User};
@@ -48,12 +49,16 @@ fn reads_the_author_and_the_flags_of_a_message() {
         .date(Utc.with_ymd_and_hms(2026, 8, 6, 23, 30, 0).unwrap())
         .build();
     let event = Event::parse(&update_of(message)).expect("a text message parses into an event");
-    assert_eq!(
-        (event.user, event.mat, event.call_to_play, event.hour_msk),
-        (7, true, true, 2),
-        "parsed event was '{:?}', expected author seven, mat, a call to play and hour two",
-        (event.user, event.mat, event.call_to_play, event.hour_msk)
-    );
+    assert_that!(event.user)
+        .named("event author")
+        .is_equal_to(7);
+    assert_that!(event.mat).named("event mat flag").is_true();
+    assert_that!(event.call_to_play)
+        .named("event call-to-play flag")
+        .is_true();
+    assert_that!(event.hour_msk)
+        .named("event hour (MSK)")
+        .is_equal_to(2);
 }
 
 #[test]
@@ -68,12 +73,9 @@ fn reads_the_reply_target_of_a_message() {
         .reply_to_message(replied_to)
         .build();
     let event = Event::parse(&update_of(message)).expect("a reply parses into an event");
-    assert_eq!(
-        event.reply_to_user,
-        Some(8),
-        "reply target was '{:?}', expected 'Some(8)'",
-        event.reply_to_user
-    );
+    assert_that!(event.reply_to_user)
+        .named("reply target")
+        .is_equal_to(Some(8));
 }
 
 #[test]
@@ -83,10 +85,9 @@ fn skips_a_message_written_by_a_bot() {
         .from(MockUser::new().id(9).is_bot(true).build())
         .build();
     let event = Event::parse(&update_of(message));
-    assert!(
-        event.is_none(),
-        "event of a bot message was '{event:?}', expected none"
-    );
+    assert_that!(event)
+        .named("event parsed from a bot message")
+        .is_none();
 }
 
 #[test]
@@ -97,12 +98,9 @@ fn collects_mentions_by_username_and_by_id() {
         .entities(vec![MessageEntity::new(MessageEntityKind::Mention, 0, 7)])
         .build();
     let event = Event::parse(&update_of(message)).expect("a mention parses into an event");
-    assert_eq!(
-        event.mentions,
-        vec![Mention::Username("stream".to_string())],
-        "mentions were '{:?}', expected one username mention",
-        event.mentions
-    );
+    assert_that!(event.mentions)
+        .named("mentions")
+        .contains_exactly([Mention::Username("stream".to_string())]);
 }
 
 #[test]
@@ -114,12 +112,13 @@ fn counts_a_message_once_per_message_id() {
     let counted = store
         .stat(event.chat, event.user, "unanswered_streak")
         .unwrap();
-    assert_eq!(
-        (first, again, counted),
-        (true, false, 1),
-        "applying the same message twice reported '{:?}', expected it counted once",
-        (first, again, counted)
-    );
+    assert_that!(first).named("first apply").is_true();
+    assert_that!(again)
+        .named("second apply of the same message id")
+        .is_false();
+    assert_that!(counted)
+        .named("unanswered_streak after both applies")
+        .is_equal_to(1);
 }
 
 #[test]
@@ -132,12 +131,12 @@ fn skips_a_message_whose_id_is_lower_than_the_last_processed_one() {
     let counted = store
         .stat(first.chat, first.user, "unanswered_streak")
         .unwrap();
-    assert_eq!(
-        (counted_earlier, counted),
-        (false, 1),
-        "applying an earlier-id message reported '{:?}', expected it rejected and 'unanswered_streak' left at '1'",
-        (counted_earlier, counted)
-    );
+    assert_that!(counted_earlier)
+        .named("apply result for the earlier-id message")
+        .is_false();
+    assert_that!(counted)
+        .named("unanswered_streak after the earlier message")
+        .is_equal_to(1);
 }
 
 #[test]
@@ -162,11 +161,12 @@ fn grows_the_unanswered_streak_until_someone_replies() {
         .build();
     apply(&store, &Event::parse(&update_of(reply)).unwrap()).unwrap();
     let reset = store.stat(chat, 7, "unanswered_streak").unwrap();
-    assert_eq!(
-        (grown, reset),
-        (3, 0),
-        "streak was '{grown}' before the reply and '{reset}' after, expected '3' then '0'"
-    );
+    assert_that!(grown)
+        .named("streak before the reply")
+        .is_equal_to(3);
+    assert_that!(reset)
+        .named("streak after the reply")
+        .is_equal_to(0);
 }
 
 #[test]
@@ -179,10 +179,9 @@ fn counts_a_monologue_of_five_messages() {
         apply(&store, &event).unwrap();
     }
     let monologues = store.stat(chat, 7, "monologues").unwrap();
-    assert_eq!(
-        monologues, 1,
-        "monologues after five messages in a row were '{monologues}', expected '1'"
-    );
+    assert_that!(monologues)
+        .named("monologues after five messages in a row")
+        .is_equal_to(1);
 }
 
 #[test]
@@ -206,10 +205,9 @@ fn counts_an_unanswered_call_when_someone_else_answers_after_the_timeout() {
     let unanswered = store
         .stat(call_event.chat, call_event.user, "unanswered_calls")
         .unwrap();
-    assert_eq!(
-        unanswered, 1,
-        "unanswered calls after a late reply from someone else were '{unanswered}', expected '1'"
-    );
+    assert_that!(unanswered)
+        .named("unanswered calls after a late reply from someone else")
+        .is_equal_to(1);
 }
 
 #[test]
@@ -233,10 +231,9 @@ fn does_not_count_a_call_answered_by_someone_else_within_the_timeout() {
     let unanswered = store
         .stat(call_event.chat, call_event.user, "unanswered_calls")
         .unwrap();
-    assert_eq!(
-        unanswered, 0,
-        "unanswered calls after a timely reply from someone else were '{unanswered}', expected '0'"
-    );
+    assert_that!(unanswered)
+        .named("unanswered calls after a timely reply from someone else")
+        .is_equal_to(0);
 }
 
 #[test]
@@ -249,10 +246,9 @@ fn counts_a_quote_the_bot_sent_to_a_member() {
     record_bot_reply(&store, &message);
     record_bot_reply(&store, &message);
     let counted = store.stat(message.chat.id.0, 7, "bot_replies").unwrap();
-    assert_eq!(
-        counted, 2,
-        "bot replies counted were '{counted}', expected '2'"
-    );
+    assert_that!(counted)
+        .named("bot replies counted")
+        .is_equal_to(2);
 }
 
 #[tokio::test]
@@ -280,10 +276,9 @@ async fn announces_the_streak_achievement_once() {
             })
             .count();
     }
-    assert_eq!(
-        announced, 1,
-        "the streak achievement was announced '{announced}' times, expected exactly one"
-    );
+    assert_that!(announced)
+        .named("times the streak achievement was announced")
+        .is_equal_to(1);
 }
 
 #[tokio::test]
@@ -310,12 +305,8 @@ async fn escapes_html_special_characters_in_the_announced_display_name() {
     }
     let announcement =
         announcement.expect("the streak achievement was announced once across the ten messages");
-    assert!(
-        announcement.contains("Ма&lt;b&gt;твей &amp; Co"),
-        "announcement was '{announcement}', expected the escaped display name 'Ма&lt;b&gt;твей &amp; Co'"
-    );
-    assert!(
-        !announcement.contains("<b>твей"),
-        "announcement was '{announcement}', expected no raw '<b>' tag to survive escaping"
-    );
+    assert_that!(announcement.as_str())
+        .named("announcement")
+        .contains("Ма&lt;b&gt;твей &amp; Co")
+        .does_not_contain("<b>твей");
 }

@@ -5,6 +5,7 @@ use afanasieff_rs::ops::consts::{STREAM_SOURCE, VINOGRAD_SOURCE};
 use afanasieff_rs::ops::error::Error;
 use afanasieff_rs::ops::matthew::reply_with_quote;
 use afanasieff_rs::ops::store::Store;
+use asserting::prelude::*;
 use teloxide::Bot;
 use teloxide::dispatching::{UpdateFilterExt, UpdateHandler};
 use teloxide::types::{Message, ReactionType, Update};
@@ -35,12 +36,9 @@ async fn replies_with_a_vinograd_quote_and_a_dung_reaction() {
     let (mut bot, store) = bot_with_store("а виноград то вкусный");
     bot.dispatch().await;
     let responses = bot.get_responses();
-    assert_eq!(
-        responses.sent_messages.len(),
-        1,
-        "sent messages count was '{}', expected one reply",
-        responses.sent_messages.len()
-    );
+    assert_that!(responses.sent_messages.len())
+        .named("sent messages count")
+        .is_equal_to(1);
     let sent = responses
         .sent_messages
         .last()
@@ -51,10 +49,9 @@ async fn replies_with_a_vinograd_quote_and_a_dung_reaction() {
     let vinograd_quotes = store
         .quotes(VINOGRAD_SOURCE)
         .expect("the vinograd quotes are readable");
-    assert!(
-        vinograd_quotes.contains(&sent),
-        "sent message was '{sent}', expected one of the vinograd quotes '{vinograd_quotes:?}'"
-    );
+    assert_that!(vinograd_quotes)
+        .named("vinograd quotes")
+        .contains(sent);
     let reaction = responses
         .set_message_reaction
         .last()
@@ -62,14 +59,11 @@ async fn replies_with_a_vinograd_quote_and_a_dung_reaction() {
         .reaction
         .clone()
         .expect("the reaction list is present");
-    assert_eq!(
-        reaction[0],
-        ReactionType::Emoji {
-            emoji: "💩".to_string()
-        },
-        "vinograd reaction was '{:?}', expected the dung emoji",
-        reaction[0]
-    );
+    assert_that!(reaction[0].clone())
+        .named("vinograd reaction")
+        .is_equal_to(ReactionType::Emoji {
+            emoji: "💩".to_string(),
+        });
 }
 
 #[tokio::test]
@@ -77,12 +71,9 @@ async fn replies_with_a_stream_quote_and_a_clown_reaction() {
     let (mut bot, store) = bot_with_store("когда стрим будет");
     bot.dispatch().await;
     let responses = bot.get_responses();
-    assert_eq!(
-        responses.sent_messages.len(),
-        1,
-        "sent messages count was '{}', expected one reply",
-        responses.sent_messages.len()
-    );
+    assert_that!(responses.sent_messages.len())
+        .named("sent messages count")
+        .is_equal_to(1);
     let sent = responses
         .sent_messages
         .last()
@@ -93,10 +84,9 @@ async fn replies_with_a_stream_quote_and_a_clown_reaction() {
     let stream_quotes = store
         .quotes(STREAM_SOURCE)
         .expect("the stream quotes are readable");
-    assert!(
-        stream_quotes.contains(&sent),
-        "sent message was '{sent}', expected one of the stream quotes '{stream_quotes:?}'"
-    );
+    assert_that!(stream_quotes)
+        .named("stream quotes")
+        .contains(sent);
     let reaction = responses
         .set_message_reaction
         .last()
@@ -104,14 +94,11 @@ async fn replies_with_a_stream_quote_and_a_clown_reaction() {
         .reaction
         .clone()
         .expect("the reaction list is present");
-    assert_eq!(
-        reaction[0],
-        ReactionType::Emoji {
-            emoji: "🤡".to_string()
-        },
-        "stream reaction was '{:?}', expected the clown emoji",
-        reaction[0]
-    );
+    assert_that!(reaction[0].clone())
+        .named("stream reaction")
+        .is_equal_to(ReactionType::Emoji {
+            emoji: "🤡".to_string(),
+        });
 }
 
 #[tokio::test]
@@ -119,10 +106,9 @@ async fn stays_quiet_when_no_keyword_matches() {
     let (mut bot, _store) = bot_with_store("обычное сообщение без ключевых слов");
     bot.dispatch().await;
     let sent = bot.get_responses().sent_messages.len();
-    assert_eq!(
-        sent, 0,
-        "sent messages count was '{sent}', expected no reply for a message with no keyword"
-    );
+    assert_that!(sent)
+        .named("sent messages count")
+        .is_equal_to(0);
 }
 
 #[tokio::test]
@@ -138,15 +124,13 @@ async fn stays_quiet_when_the_quotes_table_is_gone() {
     bot.dependencies(teloxide::dptree::deps![Arc::clone(&store)]);
     bot.dispatch().await;
     let sent = bot.get_responses().sent_messages.len();
-    assert_eq!(
-        sent, 0,
-        "sent messages count was '{sent}', expected no reply from an unreadable database"
-    );
+    assert_that!(sent)
+        .named("sent messages count")
+        .is_equal_to(0);
     let queried = store.random_quote("vinograd");
-    assert!(
-        queried.is_err(),
-        "querying a dropped quotes table returned '{queried:?}', expected an error rather than an empty result"
-    );
+    assert_that!(queried.is_err())
+        .named("querying a dropped quotes table")
+        .is_true();
 }
 
 #[tokio::test]
@@ -156,12 +140,9 @@ async fn reply_with_quote_sends_a_matthew_quote_with_a_broken_heart_reaction() {
     bot.dependencies(teloxide::dptree::deps![store]);
     bot.dispatch().await;
     let responses = bot.get_responses();
-    assert_eq!(
-        responses.sent_messages.len(),
-        1,
-        "sent messages count was '{}', expected one reply",
-        responses.sent_messages.len()
-    );
+    assert_that!(responses.sent_messages.len())
+        .named("sent messages count")
+        .is_equal_to(1);
     let reaction = responses
         .set_message_reaction
         .last()
@@ -169,12 +150,9 @@ async fn reply_with_quote_sends_a_matthew_quote_with_a_broken_heart_reaction() {
         .reaction
         .clone()
         .expect("the reaction list is present");
-    assert_eq!(
-        reaction[0],
-        ReactionType::Emoji {
-            emoji: "💔".to_string()
-        },
-        "matthew reaction was '{:?}', expected the broken heart emoji",
-        reaction[0]
-    );
+    assert_that!(reaction[0].clone())
+        .named("matthew reaction")
+        .is_equal_to(ReactionType::Emoji {
+            emoji: "💔".to_string(),
+        });
 }
