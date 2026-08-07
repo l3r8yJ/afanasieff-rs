@@ -28,6 +28,15 @@ at the chat.
 - **Talks nonsense.** A Markov chain over everything it has collected produces
   phrases nobody actually said. `/bred` asks for one; a quarter of the hourly
   messages and a fifth of the keyword replies are generated rather than quoted.
+- **Picks a cuckold of the day.** The first `/cuckold` of the day draws one
+  member at random out of everyone the bot has seen in the last thirty days,
+  announces them with a drum roll — one message edited twice — in Matthew's
+  voice, and counts it; every later call that day repeats the same name. The
+  day is a Moscow day, so an evening and the small hours after it count as
+  one. Runs of consecutive days are tracked, and the longest is kept.
+  `/cuckold_stats` ranks the chat by how often each member has been drawn,
+  with medals for the top three, the longest run beside anyone who has one,
+  and a line naming today's pick once the day has been drawn.
 
 ## Quote sources
 
