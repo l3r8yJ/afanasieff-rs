@@ -48,7 +48,7 @@ fn roll(
     chat: i64,
     at: DateTime<Utc>,
     rng: &mut impl Rng,
-) -> rusqlite::Result<Option<Roll>> {
+) -> anyhow::Result<Option<Roll>> {
     let today = day_of(at);
     let state = store.state(chat)?;
     let drawn_on = state.get("cuckold_day").copied().unwrap_or_default();
@@ -83,7 +83,7 @@ fn roll(
     }))
 }
 
-fn repeat(store: &Store, chat: i64, user: i64) -> rusqlite::Result<Option<Roll>> {
+fn repeat(store: &Store, chat: i64, user: i64) -> anyhow::Result<Option<Roll>> {
     let Some(name) = store.member_name(chat, user)? else {
         return Ok(None);
     };
@@ -391,7 +391,7 @@ mod tests {
     fn fails_to_roll_when_the_chat_state_table_is_gone() {
         let store = store_with_one_member();
         store
-            .with(|connection| connection.execute_batch("DROP TABLE chat_state"))
+            .with(|connection| Ok(connection.execute_batch("DROP TABLE chat_state")?))
             .unwrap();
         let drawn = roll(&store, CHAT, at(7, 10), &mut seeded());
         assert_that!(drawn)
@@ -403,7 +403,7 @@ mod tests {
     fn admits_fault_when_the_ranking_cannot_be_read_instead_of_calling_the_chat_empty() {
         let store = Store::in_memory().unwrap();
         store
-            .with(|connection| connection.execute_batch("DROP TABLE member_stats"))
+            .with(|connection| Ok(connection.execute_batch("DROP TABLE member_stats")?))
             .unwrap();
         let message = MockMessageText::new().text("/cuckold_stats").build();
         let rendered = stats(&message, &store);

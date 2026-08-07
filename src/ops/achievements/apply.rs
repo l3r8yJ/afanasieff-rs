@@ -20,7 +20,7 @@ const MONOLOGUE_RUN: i64 = 5;
 /// # Errors
 ///
 /// Returns an error when a statement cannot be executed.
-pub fn apply(store: &Store, event: &Event) -> rusqlite::Result<bool> {
+pub fn apply(store: &Store, event: &Event) -> anyhow::Result<bool> {
     let state = store.state(event.chat)?;
     let seen = state.get("last_message_id").copied().unwrap_or_default();
     if i64::from(event.message_id) <= seen {
@@ -47,7 +47,7 @@ pub fn apply(store: &Store, event: &Event) -> rusqlite::Result<bool> {
     Ok(true)
 }
 
-fn count_message(store: &Store, event: &Event) -> rusqlite::Result<()> {
+fn count_message(store: &Store, event: &Event) -> anyhow::Result<()> {
     if event.hour_msk >= NIGHT_FROM_HOUR && event.hour_msk < NIGHT_TO_HOUR {
         store.bump(event.chat, event.user, "night_messages", 1)?;
     }
@@ -61,7 +61,7 @@ fn count_message(store: &Store, event: &Event) -> rusqlite::Result<()> {
     Ok(())
 }
 
-fn count_words(store: &Store, event: &Event) -> rusqlite::Result<()> {
+fn count_words(store: &Store, event: &Event) -> anyhow::Result<()> {
     if event.politics {
         store.bump(event.chat, event.user, "politics", 1)?;
     }
@@ -80,7 +80,7 @@ fn count_words(store: &Store, event: &Event) -> rusqlite::Result<()> {
     Ok(())
 }
 
-fn settle_apology(store: &Store, event: &Event) -> rusqlite::Result<()> {
+fn settle_apology(store: &Store, event: &Event) -> anyhow::Result<()> {
     let now = event.created_at.timestamp();
     if event.apology {
         let last = store.stat(event.chat, event.user, "last_mat_at")?;
@@ -96,7 +96,7 @@ fn settle_apology(store: &Store, event: &Event) -> rusqlite::Result<()> {
     Ok(())
 }
 
-fn settle_streak(store: &Store, event: &Event) -> rusqlite::Result<()> {
+fn settle_streak(store: &Store, event: &Event) -> anyhow::Result<()> {
     store.bump(event.chat, event.user, "unanswered_streak", 1)?;
     if let Some(target) = event.reply_to_user
         && target != event.user
@@ -106,7 +106,7 @@ fn settle_streak(store: &Store, event: &Event) -> rusqlite::Result<()> {
     Ok(())
 }
 
-fn settle_ping(store: &Store, event: &Event, targets: &[i64]) -> rusqlite::Result<()> {
+fn settle_ping(store: &Store, event: &Event, targets: &[i64]) -> anyhow::Result<()> {
     let now = event.created_at.timestamp();
     let pinged_at = store.stat(event.chat, event.user, "pinged_at")?;
     if pinged_at > 0 {
@@ -123,7 +123,7 @@ fn settle_ping(store: &Store, event: &Event, targets: &[i64]) -> rusqlite::Resul
     Ok(())
 }
 
-fn settle_call(store: &Store, event: &Event, state: &HashMap<String, i64>) -> rusqlite::Result<()> {
+fn settle_call(store: &Store, event: &Event, state: &HashMap<String, i64>) -> anyhow::Result<()> {
     let now = event.created_at.timestamp();
     let caller = state.get("call_by").copied().unwrap_or_default();
     let called_at = state.get("call_at").copied().unwrap_or_default();
@@ -146,7 +146,7 @@ fn settle_monologue(
     store: &Store,
     event: &Event,
     state: &HashMap<String, i64>,
-) -> rusqlite::Result<()> {
+) -> anyhow::Result<()> {
     let previous = state.get("last_user_id").copied().unwrap_or_default();
     let run = if previous == event.user {
         state.get("run_len").copied().unwrap_or_default() + 1
@@ -161,11 +161,7 @@ fn settle_monologue(
     Ok(())
 }
 
-fn settle_chain(
-    store: &Store,
-    event: &Event,
-    state: &HashMap<String, i64>,
-) -> rusqlite::Result<()> {
+fn settle_chain(store: &Store, event: &Event, state: &HashMap<String, i64>) -> anyhow::Result<()> {
     let Some(target) = event.reply_to_user else {
         return Ok(());
     };
@@ -189,7 +185,7 @@ fn settle_chain(
     Ok(())
 }
 
-fn count_mentions(store: &Store, event: &Event, targets: &[i64]) -> rusqlite::Result<()> {
+fn count_mentions(store: &Store, event: &Event, targets: &[i64]) -> anyhow::Result<()> {
     for target in targets {
         if *target != event.user {
             store.bump(event.chat, event.user, &format!("mention:{target}"), 1)?;
@@ -198,7 +194,7 @@ fn count_mentions(store: &Store, event: &Event, targets: &[i64]) -> rusqlite::Re
     Ok(())
 }
 
-fn targets(store: &Store, event: &Event) -> rusqlite::Result<Vec<i64>> {
+fn targets(store: &Store, event: &Event) -> anyhow::Result<Vec<i64>> {
     let mut targets = event.reply_to_user.into_iter().collect::<Vec<i64>>();
     for mention in &event.mentions {
         match mention {

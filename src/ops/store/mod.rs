@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::sync::{Mutex, PoisonError};
 
+use anyhow::Context;
 use rusqlite::{Connection, OptionalExtension, params};
 
 mod stats;
@@ -23,8 +24,10 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the file cannot be opened or a migration fails.
-    pub fn open(path: &Path) -> rusqlite::Result<Self> {
-        Self::from_connection(Connection::open(path)?)
+    pub fn open(path: &Path) -> anyhow::Result<Self> {
+        let connection = Connection::open(path)
+            .with_context(|| format!("opening the database at '{}'", path.display()))?;
+        Self::from_connection(connection)
     }
 
     /// Opens an in-memory database with the same schema production uses.
@@ -32,11 +35,12 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when a migration fails.
-    pub fn in_memory() -> rusqlite::Result<Self> {
-        Self::from_connection(Connection::open_in_memory()?)
+    pub fn in_memory() -> anyhow::Result<Self> {
+        let connection = Connection::open_in_memory().context("opening an in-memory database")?;
+        Self::from_connection(connection)
     }
 
-    fn from_connection(connection: Connection) -> rusqlite::Result<Self> {
+    fn from_connection(connection: Connection) -> anyhow::Result<Self> {
         migrate(&connection)?;
         Ok(Self {
             connection: Mutex::new(connection),
@@ -45,8 +49,8 @@ impl Store {
 
     pub(super) fn with<T>(
         &self,
-        call: impl FnOnce(&Connection) -> rusqlite::Result<T>,
-    ) -> rusqlite::Result<T> {
+        call: impl FnOnce(&Connection) -> anyhow::Result<T>,
+    ) -> anyhow::Result<T> {
         let connection = self
             .connection
             .lock()
@@ -59,7 +63,7 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the query cannot be executed.
-    pub fn random_quote(&self, source: &str) -> rusqlite::Result<Option<String>> {
+    pub fn random_quote(&self, source: &str) -> anyhow::Result<Option<String>> {
         Ok(self.random_quote_with_id(source)?.map(|(_, text)| text))
     }
 
@@ -68,9 +72,9 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the query cannot be executed.
-    pub fn random_quote_with_id(&self, source: &str) -> rusqlite::Result<Option<(i64, String)>> {
+    pub fn random_quote_with_id(&self, source: &str) -> anyhow::Result<Option<(i64, String)>> {
         self.with(|connection| {
-            connection
+            let quote = connection
                 .query_row(
                     "SELECT id, text FROM quotes WHERE source = ?1 \
                      ORDER BY (MIN(score, 20) + 1) * (ABS(RANDOM()) % 1000) DESC LIMIT 1",
@@ -78,6 +82,8 @@ impl Store {
                     |row| Ok((row.get(0)?, row.get(1)?)),
                 )
                 .optional()
+                .with_context(|| format!("reading a random quote of source '{source}'"))?;
+            Ok(quote)
         })
     }
 
@@ -86,12 +92,15 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the query cannot be executed.
-    pub fn quotes(&self, source: &str) -> rusqlite::Result<Vec<String>> {
+    pub fn quotes(&self, source: &str) -> anyhow::Result<Vec<String>> {
         self.with(|connection| {
-            let mut statement = connection.prepare("SELECT text FROM quotes WHERE source = ?1")?;
+            let mut statement = connection
+                .prepare("SELECT text FROM quotes WHERE source = ?1")
+                .with_context(|| format!("preparing the read of quotes of source '{source}'"))?;
             let quotes = statement
                 .query_map(params![source], |row| row.get(0))?
-                .collect::<rusqlite::Result<Vec<String>>>()?;
+                .collect::<rusqlite::Result<Vec<String>>>()
+                .with_context(|| format!("reading quotes of source '{source}'"))?;
             Ok(quotes)
         })
     }
@@ -101,12 +110,14 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the insert cannot be executed.
-    pub fn remember_chat(&self, chat: i64) -> rusqlite::Result<()> {
+    pub fn remember_chat(&self, chat: i64) -> anyhow::Result<()> {
         self.with(|connection| {
-            connection.execute(
-                "INSERT OR IGNORE INTO chats (id) VALUES (?1)",
-                params![chat],
-            )?;
+            connection
+                .execute(
+                    "INSERT OR IGNORE INTO chats (id) VALUES (?1)",
+                    params![chat],
+                )
+                .with_context(|| format!("remembering chat '{chat}'"))?;
             Ok(())
         })
     }
@@ -116,12 +127,15 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the query cannot be executed.
-    pub fn chats(&self) -> rusqlite::Result<Vec<i64>> {
+    pub fn chats(&self) -> anyhow::Result<Vec<i64>> {
         self.with(|connection| {
-            let mut statement = connection.prepare("SELECT id FROM chats")?;
+            let mut statement = connection
+                .prepare("SELECT id FROM chats")
+                .context("preparing the read of every chat")?;
             let chats = statement
                 .query_map([], |row| row.get(0))?
-                .collect::<rusqlite::Result<Vec<i64>>>()?;
+                .collect::<rusqlite::Result<Vec<i64>>>()
+                .context("reading every chat")?;
             Ok(chats)
         })
     }
@@ -137,12 +151,14 @@ impl Store {
         message: i32,
         sent_at: &str,
         text: &str,
-    ) -> rusqlite::Result<bool> {
+    ) -> anyhow::Result<bool> {
         self.with(|connection| {
-            let stored = connection.execute(
-                "INSERT OR IGNORE INTO matthew_messages (chat_id, message_id, sent_at, text) VALUES (?1, ?2, ?3, ?4)",
-                params![chat, message, sent_at, text],
-            )?;
+            let stored = connection
+                .execute(
+                    "INSERT OR IGNORE INTO matthew_messages (chat_id, message_id, sent_at, text) VALUES (?1, ?2, ?3, ?4)",
+                    params![chat, message, sent_at, text],
+                )
+                .with_context(|| format!("storing matthew's message '{message}' in chat '{chat}'"))?;
             Ok(stored > 0)
         })
     }
@@ -154,25 +170,36 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the move cannot be executed.
-    pub fn promote_oldest_matthew_message(&self, source: &str) -> rusqlite::Result<Option<String>> {
+    pub fn promote_oldest_matthew_message(&self, source: &str) -> anyhow::Result<Option<String>> {
         self.with(|connection| {
-            let transaction = connection.unchecked_transaction()?;
+            let transaction = connection
+                .unchecked_transaction()
+                .context("starting the promotion of the oldest matthew message")?;
             let oldest = transaction
                 .query_row(
                     "SELECT id, text FROM matthew_messages ORDER BY sent_at, id LIMIT 1",
                     [],
                     |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
                 )
-                .optional()?;
+                .optional()
+                .context("reading the oldest waiting matthew message")?;
             let Some((id, text)) = oldest else {
                 return Ok(None);
             };
-            transaction.execute(
-                "INSERT OR IGNORE INTO quotes (source, text) VALUES (?1, ?2)",
-                params![source, text],
-            )?;
-            transaction.execute("DELETE FROM matthew_messages WHERE id = ?1", params![id])?;
-            transaction.commit()?;
+            transaction
+                .execute(
+                    "INSERT OR IGNORE INTO quotes (source, text) VALUES (?1, ?2)",
+                    params![source, text],
+                )
+                .with_context(|| {
+                    format!("inserting the promoted message into quotes of source '{source}'")
+                })?;
+            transaction
+                .execute("DELETE FROM matthew_messages WHERE id = ?1", params![id])
+                .with_context(|| format!("deleting the promoted matthew message '{id}'"))?;
+            transaction
+                .commit()
+                .context("committing the promotion of the oldest matthew message")?;
             Ok(Some(text))
         })
     }
@@ -182,12 +209,14 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the statement cannot be executed.
-    pub fn bump_quote_score(&self, quote: i64) -> rusqlite::Result<()> {
+    pub fn bump_quote_score(&self, quote: i64) -> anyhow::Result<()> {
         self.with(|connection| {
-            connection.execute(
-                "UPDATE quotes SET score = score + 1 WHERE id = ?1",
-                params![quote],
-            )?;
+            connection
+                .execute(
+                    "UPDATE quotes SET score = score + 1 WHERE id = ?1",
+                    params![quote],
+                )
+                .with_context(|| format!("bumping the score of quote '{quote}'"))?;
             Ok(())
         })
     }
@@ -198,13 +227,16 @@ impl Store {
     ///
     /// Returns an error when the query cannot be executed, including when the
     /// quote does not exist.
-    pub fn quote_score(&self, quote: i64) -> rusqlite::Result<i64> {
+    pub fn quote_score(&self, quote: i64) -> anyhow::Result<i64> {
         self.with(|connection| {
-            connection.query_row(
-                "SELECT score FROM quotes WHERE id = ?1",
-                params![quote],
-                |row| row.get(0),
-            )
+            let score = connection
+                .query_row(
+                    "SELECT score FROM quotes WHERE id = ?1",
+                    params![quote],
+                    |row| row.get(0),
+                )
+                .with_context(|| format!("reading the score of quote '{quote}'"))?;
+            Ok(score)
         })
     }
 
@@ -214,12 +246,15 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the query cannot be executed.
-    pub fn all_quotes(&self) -> rusqlite::Result<Vec<String>> {
+    pub fn all_quotes(&self) -> anyhow::Result<Vec<String>> {
         self.with(|connection| {
-            let mut statement = connection.prepare("SELECT text FROM quotes")?;
+            let mut statement = connection
+                .prepare("SELECT text FROM quotes")
+                .context("preparing the read of every quote")?;
             let quotes = statement
                 .query_map([], |row| row.get(0))?
-                .collect::<rusqlite::Result<Vec<String>>>()?;
+                .collect::<rusqlite::Result<Vec<String>>>()
+                .context("reading every quote")?;
             Ok(quotes)
         })
     }
@@ -233,34 +268,45 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when a statement cannot be executed.
-    pub fn promote_matthew_message(
-        &self,
-        chat: i64,
-        message: i32,
-    ) -> rusqlite::Result<Option<i64>> {
+    pub fn promote_matthew_message(&self, chat: i64, message: i32) -> anyhow::Result<Option<i64>> {
         self.with(|connection| {
-            let transaction = connection.unchecked_transaction()?;
+            let transaction = connection.unchecked_transaction().with_context(|| {
+                format!("starting the promotion of message '{message}' in chat '{chat}'")
+            })?;
             let waiting = transaction
                 .query_row(
                     "SELECT id, text FROM matthew_messages WHERE chat_id = ?1 AND message_id = ?2",
                     params![chat, message],
                     |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
                 )
-                .optional()?;
+                .optional()
+                .with_context(|| {
+                    format!("reading matthew's message '{message}' in chat '{chat}'")
+                })?;
             let Some((id, text)) = waiting else {
                 return Ok(None);
             };
-            transaction.execute(
-                "INSERT OR IGNORE INTO quotes (source, text) VALUES ('matthew', ?1)",
-                params![text],
-            )?;
-            let quote = transaction.query_row(
-                "SELECT id FROM quotes WHERE source = 'matthew' AND text = ?1",
-                params![text],
-                |row| row.get(0),
-            )?;
-            transaction.execute("DELETE FROM matthew_messages WHERE id = ?1", params![id])?;
-            transaction.commit()?;
+            transaction
+                .execute(
+                    "INSERT OR IGNORE INTO quotes (source, text) VALUES ('matthew', ?1)",
+                    params![text],
+                )
+                .with_context(|| format!("inserting the promoted matthew message '{id}'"))?;
+            let quote = transaction
+                .query_row(
+                    "SELECT id FROM quotes WHERE source = 'matthew' AND text = ?1",
+                    params![text],
+                    |row| row.get(0),
+                )
+                .with_context(|| {
+                    format!("reading the id of the quote promoted from message '{id}'")
+                })?;
+            transaction
+                .execute("DELETE FROM matthew_messages WHERE id = ?1", params![id])
+                .with_context(|| format!("deleting the promoted matthew message '{id}'"))?;
+            transaction.commit().with_context(|| {
+                format!("committing the promotion of message '{message}' in chat '{chat}'")
+            })?;
             Ok(Some(quote))
         })
     }
@@ -271,12 +317,19 @@ impl Store {
 /// # Errors
 ///
 /// Returns an error when a migration cannot be executed.
-fn migrate(connection: &Connection) -> rusqlite::Result<()> {
-    let applied: usize = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+fn migrate(connection: &Connection) -> anyhow::Result<()> {
+    let applied: usize = connection
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .context("reading the applied migrations count")?;
     for (number, migration) in MIGRATIONS.iter().enumerate().skip(applied) {
-        connection.execute_batch(migration)?;
-        connection.pragma_update(None, "user_version", number + 1)?;
-        log::info!("migration '{}' applied", number + 1);
+        let applied = number + 1;
+        connection
+            .execute_batch(migration)
+            .with_context(|| format!("applying migration '{applied}'"))?;
+        connection
+            .pragma_update(None, "user_version", applied)
+            .with_context(|| format!("recording migration '{applied}' as applied"))?;
+        log::info!("migration '{applied}' applied");
     }
     Ok(())
 }
@@ -290,8 +343,12 @@ impl Store {
     ///
     /// Returns an error when the drop cannot be executed.
     #[doc(hidden)]
-    pub fn drop_quotes_table_for_tests(&self) -> rusqlite::Result<()> {
-        self.with(|connection| connection.execute_batch("DROP TABLE quotes"))
+    pub fn drop_quotes_table_for_tests(&self) -> anyhow::Result<()> {
+        self.with(|connection| {
+            connection
+                .execute_batch("DROP TABLE quotes")
+                .context("dropping the quotes table for tests")
+        })
     }
 }
 
@@ -299,11 +356,11 @@ impl Store {
 impl Store {
     fn quotes_of(&self, source: &str) -> i64 {
         self.with(|connection| {
-            connection.query_row(
+            Ok(connection.query_row(
                 "SELECT COUNT(*) FROM quotes WHERE source = ?1",
                 params![source],
                 |row| row.get(0),
-            )
+            )?)
         })
         .unwrap()
     }
@@ -336,11 +393,11 @@ mod tests {
         let quote = store.random_quote("vinograd").unwrap().unwrap();
         let source: String = store
             .with(|connection| {
-                connection.query_row(
+                Ok(connection.query_row(
                     "SELECT source FROM quotes WHERE text = ?1",
                     [&quote],
                     |row| row.get(0),
-                )
+                )?)
             })
             .unwrap();
         assert_that!(source)
@@ -372,7 +429,9 @@ mod tests {
     fn records_applied_migrations_count() {
         let store = store();
         let applied: usize = store
-            .with(|connection| connection.query_row("PRAGMA user_version", [], |row| row.get(0)))
+            .with(|connection| {
+                Ok(connection.query_row("PRAGMA user_version", [], |row| row.get(0))?)
+            })
             .unwrap();
         assert_that!(applied)
             .named("applied migrations")
@@ -406,9 +465,11 @@ mod tests {
             .unwrap();
         let stored: i64 = store
             .with(|connection| {
-                connection.query_row("SELECT COUNT(*) FROM matthew_messages", [], |row| {
-                    row.get(0)
-                })
+                Ok(
+                    connection.query_row("SELECT COUNT(*) FROM matthew_messages", [], |row| {
+                        row.get(0)
+                    })?,
+                )
             })
             .unwrap();
         assert_that!(stored)
@@ -431,18 +492,20 @@ mod tests {
             .unwrap();
         let waiting: i64 = store
             .with(|connection| {
-                connection.query_row("SELECT COUNT(*) FROM matthew_messages", [], |row| {
-                    row.get(0)
-                })
+                Ok(
+                    connection.query_row("SELECT COUNT(*) FROM matthew_messages", [], |row| {
+                        row.get(0)
+                    })?,
+                )
             })
             .unwrap();
         let quoted: i64 = store
             .with(|connection| {
-                connection.query_row(
+                Ok(connection.query_row(
                     "SELECT COUNT(*) FROM quotes WHERE source = 'stream' AND text = 'первое'",
                     [],
                     |row| row.get(0),
-                )
+                )?)
             })
             .unwrap();
         assert_that!(promoted.as_str())
@@ -484,14 +547,14 @@ mod tests {
     fn favours_a_quote_with_a_higher_score() {
         let store = store();
         store
-            .with(|connection| connection.execute_batch("DELETE FROM quotes"))
+            .with(|connection| Ok(connection.execute_batch("DELETE FROM quotes")?))
             .unwrap();
         store
             .with(|connection| {
-                connection.execute_batch(
+                Ok(connection.execute_batch(
                     "INSERT INTO quotes (source, text, score) VALUES ('matthew', 'редкая', 0); \
                      INSERT INTO quotes (source, text, score) VALUES ('matthew', 'частая', 9);",
-                )
+                )?)
             })
             .unwrap();
         let mut often = 0;
@@ -509,14 +572,14 @@ mod tests {
     fn keeps_a_zero_score_quote_reachable_against_an_absurd_rival_score() {
         let store = store();
         store
-            .with(|connection| connection.execute_batch("DELETE FROM quotes"))
+            .with(|connection| Ok(connection.execute_batch("DELETE FROM quotes")?))
             .unwrap();
         store
             .with(|connection| {
-                connection.execute_batch(
+                Ok(connection.execute_batch(
                     "INSERT INTO quotes (source, text, score) VALUES ('matthew', 'обычная', 0); \
                      INSERT INTO quotes (source, text, score) VALUES ('matthew', 'звезда', 1000000);",
-                )
+                )?)
             })
             .unwrap();
         let mut drawn = 0;
@@ -535,18 +598,21 @@ mod tests {
         let store = store();
         let id: i64 = store
             .with(|connection| {
-                connection.query_row("SELECT id FROM quotes LIMIT 1", [], |row| row.get(0))
+                Ok(connection.query_row("SELECT id FROM quotes LIMIT 1", [], |row| row.get(0))?)
             })
             .unwrap();
         store.bump_quote_score(id).unwrap();
         store.bump_quote_score(id).unwrap();
-        let score: i64 = store
-            .with(|connection| {
-                connection.query_row("SELECT score FROM quotes WHERE id = ?1", [id], |row| {
-                    row.get(0)
+        let score: i64 =
+            store
+                .with(|connection| {
+                    Ok(connection.query_row(
+                        "SELECT score FROM quotes WHERE id = ?1",
+                        [id],
+                        |row| row.get(0),
+                    )?)
                 })
-            })
-            .unwrap();
+                .unwrap();
         assert_that!(score)
             .named("score after two reactions")
             .is_equal_to(2);
@@ -575,9 +641,11 @@ mod tests {
         let matthew = store.quotes("matthew").unwrap();
         let waiting: i64 = store
             .with(|connection| {
-                connection.query_row("SELECT COUNT(*) FROM matthew_messages", [], |row| {
-                    row.get(0)
-                })
+                Ok(
+                    connection.query_row("SELECT COUNT(*) FROM matthew_messages", [], |row| {
+                        row.get(0)
+                    })?,
+                )
             })
             .unwrap();
         assert_that!(promoted).named("promoted quote id").is_some();
