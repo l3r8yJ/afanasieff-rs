@@ -178,6 +178,19 @@ async fn puts_the_earlier_finisher_first_on_a_tie() {
 }
 
 #[tokio::test]
+async fn falls_back_to_the_numeric_id_when_an_achiever_has_no_member_row() {
+    let store = Arc::new(Store::in_memory().unwrap());
+    let achiever = 777;
+    store
+        .unlock(DEFAULT_CHAT, achiever, "terpim", "2026-08-07T10:00:00Z")
+        .unwrap();
+    let answer = answer_of("/top", &store).await;
+    assert_that!(answer.as_str())
+        .named("leaderboard entry of an achiever with no members row")
+        .contains(achiever.to_string());
+}
+
+#[tokio::test]
 async fn says_so_when_nobody_collected_anything() {
     let store = Arc::new(Store::in_memory().unwrap());
     let answer = answer_of("/top", &store).await;

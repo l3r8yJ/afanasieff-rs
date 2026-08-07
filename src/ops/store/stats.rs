@@ -514,7 +514,7 @@ mod tests {
         let owner = store.message_owner(42, 7).unwrap().unwrap();
         assert_that!(owner.quote)
             .named("quote after a write without one")
-            .is_some();
+            .is_equal_to(Some(5));
     }
 
     #[test]
