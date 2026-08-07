@@ -113,7 +113,7 @@ pub async fn announce(bot: &Bot, message: &Message, store: &Store) -> anyhow::Re
         Ok(Some(drawn)) => drawn,
         Ok(None) => return reply_and_stop(bot, chat, "Играть не с кем. Терпим.").await,
         Err(error) => {
-            log::error!("cuckold of chat '{}' was not drawn: '{error}'", chat.0);
+            log::error!("cuckold of chat '{}' was not drawn: '{error:#}'", chat.0);
             return reply_and_stop(bot, chat, "Бля, я обосрался. Попробуйте позже.").await;
         }
     };
@@ -171,7 +171,7 @@ pub fn stats(message: &Message, store: &Store) -> String {
     let ranked = match store.ranking(chat, "cuckold_days") {
         Ok(ranked) => ranked,
         Err(error) => {
-            log::error!("cuckold ranking of chat '{chat}' was not read: '{error}'");
+            log::error!("cuckold ranking of chat '{chat}' was not read: '{error:#}'");
             return "Бля, я обосрался. Попробуйте позже.".to_string();
         }
     };
@@ -213,7 +213,9 @@ fn today(message: &Message, store: &Store) -> String {
     let state = match store.state(chat) {
         Ok(state) => state,
         Err(error) => {
-            log::error!("chat state of chat '{chat}' was not read for today's cuckold: '{error}'");
+            log::error!(
+                "chat state of chat '{chat}' was not read for today's cuckold: '{error:#}'"
+            );
             return String::new();
         }
     };
@@ -226,7 +228,7 @@ fn today(message: &Message, store: &Store) -> String {
         Ok(Some(name)) => format!("\n\nСегодня: {}", escape(&name)),
         Ok(None) => String::new(),
         Err(error) => {
-            log::error!("name of cuckold '{drawn}' in chat '{chat}' was not read: '{error}'");
+            log::error!("name of cuckold '{drawn}' in chat '{chat}' was not read: '{error:#}'");
             String::new()
         }
     }

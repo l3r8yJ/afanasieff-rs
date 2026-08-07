@@ -533,6 +533,24 @@ mod tests {
     }
 
     #[test]
+    fn carries_the_chat_and_the_key_into_the_error_chain() {
+        let store = store();
+        store
+            .with(|connection| {
+                connection.execute_batch("DROP TABLE member_stats")?;
+                Ok(())
+            })
+            .unwrap();
+        let failure = store.stat(42, 7, "cuckold_days").unwrap_err();
+        let chain = format!("{failure:#}");
+        assert_that!(chain.as_str())
+            .named("error chain")
+            .contains("cuckold_days")
+            .contains("42")
+            .contains("no such table");
+    }
+
+    #[test]
     fn overwrites_a_counter_on_set() {
         let store = store();
         store.bump(42, 7, "longest_message", 100).unwrap();

@@ -24,7 +24,7 @@ async fn send_to_every_chat(bot: &Bot, store: &Store) {
     let chats = match store.chats() {
         Ok(chats) => chats,
         Err(error) => {
-            log::error!("chats were not read: '{error}'");
+            log::error!("chats were not read: '{error:#}'");
             return;
         }
     };
@@ -33,7 +33,7 @@ async fn send_to_every_chat(bot: &Bot, store: &Store) {
             match store.all_quotes() {
                 Ok(corpus) => crate::ops::markov::generate(&corpus, &mut rng()),
                 Err(error) => {
-                    log::error!("corpus for chat '{id}' was not read: '{error}'");
+                    log::error!("corpus for chat '{id}' was not read: '{error:#}'");
                     None
                 }
             }
@@ -49,7 +49,7 @@ async fn send_to_every_chat(bot: &Bot, store: &Store) {
                     continue;
                 }
                 Err(error) => {
-                    log::error!("quote for chat '{id}' was not read: '{error}'");
+                    log::error!("quote for chat '{id}' was not read: '{error:#}'");
                     continue;
                 }
             },
@@ -59,7 +59,7 @@ async fn send_to_every_chat(bot: &Bot, store: &Store) {
                 log::info!("message sent for id: '{id}'");
                 remember(store, &sent, quote);
             }
-            Err(error) => log::error!("message for id '{id}' failed: '{error}'"),
+            Err(error) => log::error!("message for id '{id}' failed: '{error:#}'"),
         }
     }
 }
