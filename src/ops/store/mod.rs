@@ -36,7 +36,7 @@ impl Store {
     ///
     /// Returns an error when a migration fails.
     pub fn in_memory() -> anyhow::Result<Self> {
-        let connection = Connection::open_in_memory().context("opening an in-memory database")?;
+        let connection = Connection::open_in_memory()?;
         Self::from_connection(connection)
     }
 
@@ -347,11 +347,7 @@ impl Store {
     /// Returns an error when the drop cannot be executed.
     #[doc(hidden)]
     pub fn drop_quotes_table_for_tests(&self) -> anyhow::Result<()> {
-        self.with(|connection| {
-            connection
-                .execute_batch("DROP TABLE quotes")
-                .context("dropping the quotes table for tests")
-        })
+        self.with(|connection| Ok(connection.execute_batch("DROP TABLE quotes")?))
     }
 }
 
