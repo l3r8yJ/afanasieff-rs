@@ -130,9 +130,9 @@ async fn stays_quiet_when_the_quotes_table_is_gone() {
         .named("sent messages count")
         .is_equal_to(0);
     let queried = store.random_quote("vinograd");
-    assert_that!(queried.is_err())
+    assert_that!(queried)
         .named("querying a dropped quotes table")
-        .is_true();
+        .is_err();
 }
 
 #[tokio::test]

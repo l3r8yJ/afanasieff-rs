@@ -265,9 +265,9 @@ mod tests {
     fn skips_an_achievement_the_member_already_owns() {
         let owned = HashSet::from(["terpim".to_string()]);
         let given = unlocked(&stats(&[("unanswered_streak", 40)]), &owned);
-        assert_that!(given.is_empty())
+        assert_that!(given)
             .named("unlocking an owned achievement")
-            .is_true();
+            .is_empty();
     }
 
     #[test]
