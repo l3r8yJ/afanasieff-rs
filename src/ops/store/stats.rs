@@ -382,7 +382,7 @@ impl Store {
                 "SELECT s.user_id, m.first_name, s.value FROM member_stats s \
                  LEFT JOIN members m ON m.chat_id = s.chat_id AND m.user_id = s.user_id \
                  WHERE s.chat_id = ?1 AND s.key = ?2 AND s.value > 0 \
-                 ORDER BY s.value DESC",
+                 ORDER BY s.value DESC, s.user_id ASC",
             )?;
             let ranked = statement
                 .query_map(params![chat, key], |row| {
@@ -697,6 +697,37 @@ mod tests {
         assert_that!(names)
             .named("ranking")
             .contains_exactly(["Второй".to_string(), "Первый".to_string()]);
+    }
+
+    #[test]
+    fn breaks_a_tie_in_the_ranking_by_ascending_user_id_on_every_call() {
+        let store = store();
+        store
+            .upsert_member(42, 2, Some("two"), "Второй", "2026-08-07T10:00:00+00:00")
+            .unwrap();
+        store
+            .upsert_member(42, 1, Some("one"), "Первый", "2026-08-07T10:00:00+00:00")
+            .unwrap();
+        store.set_stat(42, 2, "cuckold_days", 3).unwrap();
+        store.set_stat(42, 1, "cuckold_days", 3).unwrap();
+        let first_call = store
+            .ranking(42, "cuckold_days")
+            .unwrap()
+            .iter()
+            .map(|standing| standing.user)
+            .collect::<Vec<i64>>();
+        let second_call = store
+            .ranking(42, "cuckold_days")
+            .unwrap()
+            .iter()
+            .map(|standing| standing.user)
+            .collect::<Vec<i64>>();
+        assert_that!(first_call)
+            .named("ranking order on a tie")
+            .contains_exactly([1, 2]);
+        assert_that!(second_call)
+            .named("ranking order on a repeated call")
+            .contains_exactly([1, 2]);
     }
 
     #[test]
