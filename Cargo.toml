@@ -28,6 +28,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 tokio-util = "0.7"
 
 [dev-dependencies]
+asserting = "0.15"
 teloxide_tests = "0.4.0"
 tempfile = "3"
 

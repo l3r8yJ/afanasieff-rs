@@ -133,6 +133,8 @@ fn starts_after_prefix(token: &str, root: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use asserting::prelude::*;
+
     use super::{
         APOLOGY_EXACT, APOLOGY_PHRASES, LAUGH_EXACT, MAT_EXCEPTIONS, MAT_ROOTS, PLAY_EXACT,
         PLAY_PREFIXES, POLITICS_EXACT, POLITICS_PREFIXES, PREFIXES, STREAM_WORDS, VINOGRAD_WORDS,
@@ -147,41 +149,34 @@ mod tests {
     #[test]
     fn collapses_repeated_letters_into_one() {
         let collapsed = tokens("хуууууй");
-        assert_eq!(
-            collapsed,
-            vec!["хуй".to_string()],
-            "tokens were '{collapsed:?}', expected the repeats collapsed to 'хуй'"
-        );
+        assert_that!(collapsed)
+            .named("tokens")
+            .contains_exactly(["хуй".to_string()]);
     }
 
     #[test]
     fn folds_latin_lookalikes_into_cyrillic() {
         let folded = tokens("CYKA");
-        assert_eq!(
-            folded,
-            vec!["сука".to_string()],
-            "tokens were '{folded:?}', expected the latin letters folded into 'сука'"
-        );
+        assert_that!(folded)
+            .named("tokens")
+            .contains_exactly(["сука".to_string()]);
     }
 
     #[test]
     fn splits_on_everything_that_is_not_a_letter_or_a_digit() {
         let split = tokens("идем 1х1, ага!");
-        assert_eq!(
-            split,
-            vec!["идем".to_string(), "1х1".to_string(), "ага".to_string()],
-            "tokens were '{split:?}', expected three tokens"
-        );
+        assert_that!(split).named("tokens").contains_exactly([
+            "идем".to_string(),
+            "1х1".to_string(),
+            "ага".to_string(),
+        ]);
     }
 
     #[test]
     fn finds_mat_behind_a_prefix() {
         for text in ["въебал", "нахуярить", "ебало", "мудак", "блядь", "хуйло"]
         {
-            assert!(
-                mat(text),
-                "text '{text}' was not detected as mat, expected it to be"
-            );
+            assert_that!(mat(text)).named(text).is_true();
         }
     }
 
@@ -196,10 +191,7 @@ mod tests {
             "херсон",
             "сукно",
         ] {
-            assert!(
-                !mat(text),
-                "text '{text}' was detected as mat, expected it not to be"
-            );
+            assert_that!(mat(text)).named(text).is_false();
         }
     }
 
@@ -208,10 +200,7 @@ mod tests {
         for text in ["го", "го в доту", "катку?", "кс го", "1х1 давай", "погнали"]
         {
             let found = is_call_to_play(&tokens(text));
-            assert!(
-                found,
-                "text '{text}' was not read as a call to play, expected it to be"
-            );
+            assert_that!(found).named(text).is_true();
         }
     }
 
@@ -220,10 +209,7 @@ mod tests {
         for text in ["город красивый", "много всего", "гонка была"]
         {
             let found = is_call_to_play(&tokens(text));
-            assert!(
-                !found,
-                "text '{text}' was read as a call to play, expected it not to be"
-            );
+            assert_that!(found).named(text).is_false();
         }
     }
 
@@ -231,12 +217,12 @@ mod tests {
     fn tells_politics_from_ordinary_words() {
         let political = is_politics(&tokens("путин и либералы"));
         let free = is_politics(&tokens("свобода это свое дело"));
-        assert_eq!(
-            (political, free),
-            (true, false),
-            "politics detection reported '{:?}', expected '(true, false)'",
-            (political, free)
-        );
+        assert_that!(political)
+            .named("politics detection of a political message")
+            .is_true();
+        assert_that!(free)
+            .named("politics detection of a free-speech message")
+            .is_false();
     }
 
     #[test]
@@ -249,10 +235,7 @@ mod tests {
             "я был не прав",
         ] {
             let found = is_apology(text, &tokens(text));
-            assert!(
-                found,
-                "text '{text}' was not read as an apology, expected it to be"
-            );
+            assert_that!(found).named(text).is_true();
         }
     }
 
@@ -261,36 +244,32 @@ mod tests {
         let laughs = ["ахаха", "ХААХХААХАХАХАХАХ", "хех", "лол"];
         let words = ["ахаха ну ты даешь", "нормально"];
         for text in laughs {
-            assert!(
-                is_laugh_only(&tokens(text)),
-                "text '{text}' was not read as laughter, expected it to be"
-            );
+            assert_that!(is_laugh_only(&tokens(text)))
+                .named(text)
+                .is_true();
         }
         for text in words {
-            assert!(
-                !is_laugh_only(&tokens(text)),
-                "text '{text}' was read as laughter, expected it not to be"
-            );
+            assert_that!(is_laugh_only(&tokens(text)))
+                .named(text)
+                .is_false();
         }
     }
 
     #[test]
     fn finds_a_stream_mention_by_prefix() {
         for text in ["стрим", "стримчик", "го стримить"] {
-            assert!(
-                mentions_stream(&tokens(text)),
-                "text '{text}' was not read as a stream mention, expected it to be"
-            );
+            assert_that!(mentions_stream(&tokens(text)))
+                .named(text)
+                .is_true();
         }
     }
 
     #[test]
     fn does_not_read_a_stream_mention_in_unrelated_text() {
         for text in ["привет", "го в доту"] {
-            assert!(
-                !mentions_stream(&tokens(text)),
-                "text '{text}' was read as a stream mention, expected it not to be"
-            );
+            assert_that!(mentions_stream(&tokens(text)))
+                .named(text)
+                .is_false();
         }
     }
 
@@ -298,20 +277,18 @@ mod tests {
     fn finds_a_vinograd_mention_by_prefix() {
         for text in ["виноград", "лысина", "данила", "данек", "данёк"]
         {
-            assert!(
-                mentions_vinograd(&tokens(text)),
-                "text '{text}' was not read as a vinograd mention, expected it to be"
-            );
+            assert_that!(mentions_vinograd(&tokens(text)))
+                .named(text)
+                .is_true();
         }
     }
 
     #[test]
     fn does_not_read_a_vinograd_mention_in_unrelated_text() {
         for text in ["привет", "го в доту"] {
-            assert!(
-                !mentions_vinograd(&tokens(text)),
-                "text '{text}' was read as a vinograd mention, expected it not to be"
-            );
+            assert_that!(mentions_vinograd(&tokens(text)))
+                .named(text)
+                .is_false();
         }
     }
 
@@ -334,10 +311,9 @@ mod tests {
         for (list_name, entries) in lists {
             for entry in *entries {
                 let normalized = normalize(entry);
-                assert_eq!(
-                    &normalized, entry,
-                    "entry '{entry}' in {list_name} normalised to '{normalized}', expected it unchanged since a doubled letter makes the entry unreachable"
-                );
+                assert_that!(normalized)
+                    .named(format!("'{entry}' in {list_name} normalised"))
+                    .is_equal_to(*entry);
             }
         }
     }

@@ -3,6 +3,7 @@ use std::sync::atomic::AtomicI32;
 use afanasieff_rs::ops::consts::MATTHEW_SOURCE;
 use afanasieff_rs::ops::intake::observe;
 use afanasieff_rs::ops::store::{MATTHEW_USERNAME, Store};
+use asserting::prelude::*;
 use teloxide_tests::IntoUpdate;
 use teloxide_tests::{MockMessageText, MockUser};
 
@@ -25,8 +26,7 @@ fn promotes_a_matthew_message_into_quotes_verbatim() {
         .promote_oldest_matthew_message(MATTHEW_SOURCE)
         .unwrap()
         .expect("the observed message is promoted into quotes");
-    assert_eq!(
-        promoted, SPOKEN,
-        "promoted quote was '{promoted}', expected the exact message matthew sent '{SPOKEN}'"
-    );
+    assert_that!(promoted.as_str())
+        .named("promoted quote")
+        .is_equal_to(SPOKEN);
 }

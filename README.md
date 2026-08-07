@@ -19,7 +19,15 @@ at the chat.
   `/achievements` lists all seventeen with their conditions, `/my_achievements`
   shows what the caller has unlocked and what is still locked. Counters start
   from zero when the bot first runs this version; there is no history behind
-  them.
+  them. `/top` ranks the whole chat by how many achievements each member has
+  collected.
+- **Listens to reactions.** A reaction pushes the message it lands on into the
+  quote pool ahead of the queue, makes a quote come up more often, and counts as
+  an answer for the achievements. It needs the bot to be an administrator of the
+  group — Telegram sends reaction updates to nobody else.
+- **Talks nonsense.** A Markov chain over everything it has collected produces
+  phrases nobody actually said. `/bred` asks for one; a quarter of the hourly
+  messages and a fifth of the keyword replies are generated rather than quoted.
 
 ## Quote sources
 

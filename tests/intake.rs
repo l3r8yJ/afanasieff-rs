@@ -3,6 +3,7 @@ use std::sync::atomic::AtomicI32;
 use afanasieff_rs::ops::consts::MATTHEW_SOURCE;
 use afanasieff_rs::ops::intake::observe;
 use afanasieff_rs::ops::store::{MATTHEW_USERNAME, Store};
+use asserting::prelude::*;
 use teloxide_tests::IntoUpdate;
 use teloxide_tests::{MockMessageText, MockUser};
 
@@ -15,6 +16,13 @@ fn update_from(message: MockMessageText) -> teloxide::types::Update {
         .into_update(&AtomicI32::new(1))
         .pop()
         .expect("one update is produced")
+}
+
+fn update_of(message: teloxide::types::Message) -> teloxide::types::Update {
+    teloxide::types::Update {
+        id: teloxide::types::UpdateId(1),
+        kind: teloxide::types::UpdateKind::Message(message),
+    }
 }
 
 #[test]
@@ -31,10 +39,9 @@ fn collects_a_long_message_written_by_matthew() {
     let promoted = store
         .promote_oldest_matthew_message(MATTHEW_SOURCE)
         .unwrap();
-    assert!(
-        promoted.is_some(),
-        "a long matthew message was promoted as '{promoted:?}', expected it to be waiting"
-    );
+    assert_that!(promoted)
+        .named("promotion of a long matthew message")
+        .is_some();
 }
 
 #[test]
@@ -51,10 +58,9 @@ fn ignores_a_message_shorter_than_the_threshold() {
     let promoted = store
         .promote_oldest_matthew_message(MATTHEW_SOURCE)
         .unwrap();
-    assert_eq!(
-        promoted, None,
-        "a message of ten characters or fewer was promoted as '{promoted:?}', expected none"
-    );
+    assert_that!(promoted)
+        .named("promotion of a message of ten characters or fewer")
+        .is_none();
 }
 
 #[test]
@@ -71,10 +77,9 @@ fn ignores_a_message_written_by_anyone_else() {
     let promoted = store
         .promote_oldest_matthew_message(MATTHEW_SOURCE)
         .unwrap();
-    assert_eq!(
-        promoted, None,
-        "a message from someone other than MatthewAFN was promoted as '{promoted:?}', expected none"
-    );
+    assert_that!(promoted)
+        .named("promotion of a message from someone other than MatthewAFN")
+        .is_none();
 }
 
 #[test]
@@ -86,11 +91,9 @@ fn remembers_every_observed_chat_once() {
     observe(&store, update_from(message.clone()));
     observe(&store, update_from(message));
     let chats = store.chats().unwrap();
-    assert_eq!(
-        chats.len(),
-        1,
-        "remembered chats were '{chats:?}', expected exactly one chat"
-    );
+    assert_that!(chats.len())
+        .named("remembered chats")
+        .is_equal_to(1);
 }
 
 #[test]
@@ -104,15 +107,30 @@ fn collects_the_same_message_id_only_once() {
     let first = store
         .promote_oldest_matthew_message(MATTHEW_SOURCE)
         .unwrap();
-    assert!(
-        first.is_some(),
-        "the first promotion returned '{first:?}', expected the message to be stored"
-    );
+    assert_that!(first).named("the first promotion").is_some();
     let second = store
         .promote_oldest_matthew_message(MATTHEW_SOURCE)
         .unwrap();
-    assert_eq!(
-        second, None,
-        "the second promotion returned '{second:?}', expected the duplicate to not create a second row"
-    );
+    assert_that!(second)
+        .named("the second promotion of the same message id")
+        .is_none();
+}
+
+#[test]
+fn remembers_who_wrote_an_observed_message() {
+    let store = Store::in_memory().unwrap();
+    let message = MockMessageText::new()
+        .text("обычное сообщение")
+        .from(MockUser::new().id(7u64).build())
+        .id(5i32)
+        .build();
+    let chat = message.chat.id.0;
+    afanasieff_rs::ops::intake::observe(&store, update_of(message));
+    let owner = store.message_owner(chat, 5).unwrap().unwrap();
+    assert_that!(owner.user)
+        .named("remembered author")
+        .is_equal_to(7);
+    assert_that!(owner.quote)
+        .named("quote of a plain message")
+        .is_none();
 }

@@ -116,6 +116,39 @@ impl Store {
         })
     }
 
+    /// Returns the username of the member, when they have one.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn member_username(&self, chat: i64, user: i64) -> rusqlite::Result<Option<String>> {
+        self.with(|connection| {
+            connection
+                .query_row(
+                    "SELECT username FROM members WHERE chat_id = ?1 AND user_id = ?2",
+                    params![chat, user],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map(Option::flatten)
+        })
+    }
+
+    /// Tells whether the chat has a member row for the given user.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn is_member(&self, chat: i64, user: i64) -> rusqlite::Result<bool> {
+        self.with(|connection| {
+            connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM members WHERE chat_id = ?1 AND user_id = ?2)",
+                params![chat, user],
+                |row| row.get(0),
+            )
+        })
+    }
+
     /// Returns every state value of the chat.
     ///
     /// # Errors
@@ -204,8 +237,114 @@ impl Store {
     }
 }
 
+const REMEMBERED_PER_CHAT: i64 = 500;
+
+#[derive(Debug)]
+pub struct MessageOwner {
+    pub user: i64,
+    pub quote: Option<i64>,
+}
+
+impl Store {
+    /// Records who wrote the message and, when given, which quote it carries.
+    ///
+    /// Writing the same message again refreshes the author and attaches a
+    /// quote, but never clears a quote that is already attached. Only the
+    /// newest messages of each chat are kept.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a statement cannot be executed.
+    pub fn remember_message(
+        &self,
+        chat: i64,
+        message: i32,
+        user: i64,
+        quote: Option<i64>,
+    ) -> rusqlite::Result<()> {
+        self.with(|connection| {
+            connection.execute(
+                "INSERT INTO message_owners (chat_id, message_id, user_id, quote_id) \
+                 VALUES (?1, ?2, ?3, ?4) \
+                 ON CONFLICT(chat_id, message_id) \
+                 DO UPDATE SET user_id = ?3, quote_id = COALESCE(?4, quote_id)",
+                params![chat, message, user, quote],
+            )?;
+            connection.execute(
+                "DELETE FROM message_owners WHERE chat_id = ?1 AND message_id NOT IN \
+                 (SELECT message_id FROM message_owners WHERE chat_id = ?1 \
+                  ORDER BY message_id DESC LIMIT ?2)",
+                params![chat, REMEMBERED_PER_CHAT],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Returns who wrote the message and which quote it carries.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn message_owner(&self, chat: i64, message: i32) -> rusqlite::Result<Option<MessageOwner>> {
+        self.with(|connection| {
+            connection
+                .query_row(
+                    "SELECT user_id, quote_id FROM message_owners \
+                     WHERE chat_id = ?1 AND message_id = ?2",
+                    params![chat, message],
+                    |row| {
+                        Ok(MessageOwner {
+                            user: row.get(0)?,
+                            quote: row.get(1)?,
+                        })
+                    },
+                )
+                .optional()
+        })
+    }
+}
+
+pub struct Standing {
+    pub user: i64,
+    pub name: Option<String>,
+    pub owned: i64,
+}
+
+impl Store {
+    /// Returns the members of the chat ranked by how many achievements they
+    /// own, the one who got there first ahead on a tie.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn leaderboard(&self, chat: i64) -> rusqlite::Result<Vec<Standing>> {
+        self.with(|connection| {
+            let mut statement = connection.prepare(
+                "SELECT a.user_id, m.first_name, COUNT(*) AS owned, MAX(a.unlocked_at) AS latest \
+                 FROM achievements a \
+                 LEFT JOIN members m ON m.chat_id = a.chat_id AND m.user_id = a.user_id \
+                 WHERE a.chat_id = ?1 \
+                 GROUP BY a.user_id \
+                 ORDER BY owned DESC, latest ASC",
+            )?;
+            let standings = statement
+                .query_map(params![chat], |row| {
+                    Ok(Standing {
+                        user: row.get(0)?,
+                        name: row.get(1)?,
+                        owned: row.get(2)?,
+                    })
+                })?
+                .collect::<rusqlite::Result<Vec<Standing>>>()?;
+            Ok(standings)
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use asserting::prelude::*;
+
     use crate::ops::store::Store;
 
     fn store() -> Store {
@@ -217,10 +356,9 @@ mod tests {
         let store = store();
         store.bump(42, 7, "messages", 1).unwrap();
         let value = store.bump(42, 7, "messages", 1).unwrap();
-        assert_eq!(
-            value, 2,
-            "counter after two bumps was '{value}', expected '2'"
-        );
+        assert_that!(value)
+            .named("counter after two bumps")
+            .is_equal_to(2);
     }
 
     #[test]
@@ -230,22 +368,21 @@ mod tests {
         store.bump(42, 8, "messages", 1).unwrap();
         let seven = store.stat(42, 7, "messages").unwrap();
         let eight = store.stat(42, 8, "messages").unwrap();
-        assert_eq!(
-            (seven, eight),
-            (5, 1),
-            "counters were '{:?}', expected '(5, 1)'",
-            (seven, eight)
-        );
+        assert_that!(seven)
+            .named("member seven's counter")
+            .is_equal_to(5);
+        assert_that!(eight)
+            .named("member eight's counter")
+            .is_equal_to(1);
     }
 
     #[test]
     fn reports_zero_for_a_counter_that_was_never_bumped() {
         let store = store();
         let value = store.stat(42, 7, "night_messages").unwrap();
-        assert_eq!(
-            value, 0,
-            "counter that was never bumped was '{value}', expected '0'"
-        );
+        assert_that!(value)
+            .named("counter that was never bumped")
+            .is_equal_to(0);
     }
 
     #[test]
@@ -254,7 +391,9 @@ mod tests {
         store.bump(42, 7, "longest_message", 100).unwrap();
         store.set_stat(42, 7, "longest_message", 40).unwrap();
         let value = store.stat(42, 7, "longest_message").unwrap();
-        assert_eq!(value, 40, "counter after set was '{value}', expected '40'");
+        assert_that!(value)
+            .named("counter after set")
+            .is_equal_to(40);
     }
 
     #[test]
@@ -266,14 +405,12 @@ mod tests {
         let stats = store.stats(42, 7).unwrap();
         let mut keys = stats.keys().cloned().collect::<Vec<String>>();
         keys.sort();
-        assert_eq!(
-            (keys.as_slice(), stats.get("messages").copied()),
-            (
-                ["mat".to_string(), "messages".to_string()].as_slice(),
-                Some(3)
-            ),
-            "stats of member seven were '{stats:?}', expected only their own two counters"
-        );
+        assert_that!(keys)
+            .named("member seven's stat keys")
+            .contains_exactly(["mat".to_string(), "messages".to_string()]);
+        assert_that!(stats.get("messages").copied())
+            .named("member seven's message counter")
+            .is_equal_to(Some(3));
     }
 
     #[test]
@@ -283,11 +420,9 @@ mod tests {
             .upsert_member(42, 7, Some("MatthewAFN"), "Матвей", "2026-08-06T10:00:00Z")
             .unwrap();
         let found = store.member_by_username(42, "matthewafn").unwrap();
-        assert_eq!(
-            found,
-            Some(7),
-            "member resolved by username was '{found:?}', expected 'Some(7)'"
-        );
+        assert_that!(found)
+            .named("member resolved by username")
+            .is_equal_to(Some(7));
     }
 
     #[test]
@@ -301,12 +436,12 @@ mod tests {
             .unwrap();
         let by_old = store.member_by_username(42, "old").unwrap();
         let by_new = store.member_by_username(42, "new").unwrap();
-        assert_eq!(
-            (by_old, by_new),
-            (None, Some(7)),
-            "member after the second upsert resolved to '{:?}', expected the old username gone and the new one resolving to '7'",
-            (by_old, by_new)
-        );
+        assert_that!(by_old)
+            .named("member resolved by the old username")
+            .is_none();
+        assert_that!(by_new)
+            .named("member resolved by the new username")
+            .is_equal_to(Some(7));
     }
 
     #[test]
@@ -317,16 +452,12 @@ mod tests {
         store.set_state(42, "last_message_id", 101).unwrap();
         let first = store.state(42).unwrap();
         let second = store.state(-100).unwrap();
-        assert_eq!(
-            (
-                first.get("last_message_id").copied(),
-                second.get("last_message_id").copied()
-            ),
-            (Some(101), Some(7)),
-            "chat state was '{:?}' and '{:?}', expected '101' and '7'",
-            first,
-            second
-        );
+        assert_that!(first.get("last_message_id").copied())
+            .named("chat 42's last message id")
+            .is_equal_to(Some(101));
+        assert_that!(second.get("last_message_id").copied())
+            .named("chat -100's last message id")
+            .is_equal_to(Some(7));
     }
 
     #[test]
@@ -338,12 +469,10 @@ mod tests {
         let again = store
             .unlock(42, 7, "terpim", "2026-08-06T11:00:00Z")
             .unwrap();
-        assert_eq!(
-            (first, again),
-            (true, false),
-            "unlocking twice reported '{:?}', expected '(true, false)'",
-            (first, again)
-        );
+        assert_that!(first).named("first unlock").is_true();
+        assert_that!(again)
+            .named("second unlock of the same achievement")
+            .is_false();
     }
 
     #[test]
@@ -359,10 +488,81 @@ mod tests {
         let owned = store.owned(42, 7).unwrap();
         let mut codes = owned.iter().cloned().collect::<Vec<String>>();
         codes.sort();
-        assert_eq!(
-            codes,
-            vec!["haha".to_string(), "terpim".to_string()],
-            "owned codes were '{codes:?}', expected only the two of member seven"
-        );
+        assert_that!(codes)
+            .named("owned codes")
+            .contains_exactly(["haha".to_string(), "terpim".to_string()]);
+    }
+
+    #[test]
+    fn remembers_who_wrote_a_message() {
+        let store = store();
+        store.remember_message(42, 7, 100, None).unwrap();
+        let owner = store.message_owner(42, 7).unwrap().unwrap();
+        assert_that!(owner.user)
+            .named("owner of the message")
+            .is_equal_to(100);
+        assert_that!(owner.quote)
+            .named("quote of a plain message")
+            .is_none();
+    }
+
+    #[test]
+    fn keeps_the_quote_when_a_later_write_does_not_carry_one() {
+        let store = store();
+        store.remember_message(42, 7, 100, Some(5)).unwrap();
+        store.remember_message(42, 7, 100, None).unwrap();
+        let owner = store.message_owner(42, 7).unwrap().unwrap();
+        assert_that!(owner.quote)
+            .named("quote after a write without one")
+            .is_equal_to(Some(5));
+    }
+
+    #[test]
+    fn attaches_a_quote_to_an_already_remembered_message() {
+        let store = store();
+        store.remember_message(42, 7, 100, None).unwrap();
+        store.remember_message(42, 7, 100, Some(9)).unwrap();
+        let owner = store.message_owner(42, 7).unwrap().unwrap();
+        assert_that!(owner.quote)
+            .named("quote attached later")
+            .is_equal_to(Some(9));
+    }
+
+    #[test]
+    fn forgets_a_message_that_fell_out_of_the_window() {
+        let store = store();
+        for message in 1..=520 {
+            store.remember_message(42, message, 100, None).unwrap();
+        }
+        let oldest = store.message_owner(42, 1).unwrap();
+        let newest = store.message_owner(42, 520).unwrap();
+        assert_that!(oldest)
+            .named("owner of the oldest message")
+            .is_none();
+        assert_that!(newest)
+            .named("owner of the newest message")
+            .is_some();
+    }
+
+    #[test]
+    fn keeps_the_windows_of_two_chats_apart() {
+        let store = store();
+        store.remember_message(42, 7, 100, None).unwrap();
+        for message in 1..=520 {
+            store.remember_message(-100, message, 200, None).unwrap();
+        }
+        let survived = store.message_owner(42, 7).unwrap();
+        assert_that!(survived)
+            .named("owner in the untouched chat")
+            .is_some();
+    }
+
+    #[test]
+    fn reports_no_owner_for_an_unknown_message() {
+        let store = store();
+        let owner = store.message_owner(42, 7).unwrap();
+        assert_that!(owner)
+            .named("owner of an unknown message")
+            .is_none();
     }
 }

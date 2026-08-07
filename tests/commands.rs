@@ -3,6 +3,8 @@ use std::sync::Arc;
 use afanasieff_rs::handler_tree;
 use afanasieff_rs::ops::consts::STREAM_SOURCE;
 use afanasieff_rs::ops::store::Store;
+use asserting::prelude::*;
+use teloxide::utils::html::escape;
 use teloxide_tests::{MockBot, MockMessageText};
 
 const DEFAULT_CHAT: i64 = 12_345_678;
@@ -25,44 +27,47 @@ async fn answer_of(command: &str, store: &Arc<Store>) -> String {
 async fn lists_every_achievement_with_its_condition() {
     let store = Arc::new(Store::in_memory().unwrap());
     let answer = answer_of("/achievements", &store).await;
-    assert!(
-        answer.contains("<b>Терпим</b>\n     <i>10 своих сообщений подряд")
-            && answer.contains("<b>Петух в законе</b>\n     <i>собрать пять любых других</i>"),
-        "catalogue answer was '{answer}', expected every title in bold above its condition in italics"
-    );
+    assert_that!(answer.as_str())
+        .named("catalogue answer")
+        .contains("<b>Терпим</b>\n     <i>10 своих сообщений подряд")
+        .contains("<b>Петух в законе</b>\n     <i>собрать пять любых других</i>");
 }
 
 #[tokio::test]
 async fn shows_locked_and_unlocked_achievements_of_the_caller() {
     let store = Arc::new(Store::in_memory().unwrap());
     let answer = answer_of("/my_achievements", &store).await;
-    assert!(
-        answer.contains("0 из 17") && answer.contains("🔒") && answer.contains("▱▱▱▱▱▱▱▱▱▱"),
-        "personal answer was '{answer}', expected a zero score, locked entries and an empty progress bar"
-    );
+    assert_that!(answer.as_str())
+        .named("personal answer")
+        .contains("0 из 17")
+        .contains("🔒")
+        .contains("▱▱▱▱▱▱▱▱▱▱");
 }
 
 #[tokio::test]
 async fn falls_through_to_the_quote_branch_when_text_merely_mentions_achievements() {
+    afanasieff_rs::ops::chance::set_generated_on_keyword_for_tests(0);
     let store = Arc::new(Store::in_memory().unwrap());
     let answer = answer_of("achievements упоминают стрим", &store).await;
     let stream_quotes = store
         .quotes(STREAM_SOURCE)
         .expect("the stream quotes are readable");
-    assert!(
-        stream_quotes.contains(&answer) && !answer.contains("Ачивки"),
-        "answer to a keyword-bearing message with no leading slash was '{answer}', expected one of the stream quotes '{stream_quotes:?}' rather than the catalogue text"
-    );
+    assert_that!(answer.as_str())
+        .named("answer to a keyword-bearing message with no leading slash")
+        .does_not_contain("Ачивки");
+    assert_that!(stream_quotes)
+        .named("stream quotes")
+        .contains(answer);
 }
 
 #[tokio::test]
 async fn joins_the_header_and_the_locked_list_with_a_single_blank_line_when_nothing_is_owned() {
     let store = Arc::new(Store::in_memory().unwrap());
     let answer = answer_of("/my_achievements", &store).await;
-    assert!(
-        answer.contains("0 из 17") && !answer.contains("\n\n\n"),
-        "personal answer with nothing owned was '{answer}', expected the zero score and no run of more than one blank line"
-    );
+    assert_that!(answer.as_str())
+        .named("personal answer with nothing owned")
+        .contains("0 из 17")
+        .does_not_contain("\n\n\n");
 }
 
 #[tokio::test]
@@ -84,12 +89,131 @@ async fn orders_locked_achievements_by_closeness_to_their_threshold_with_the_met
     let meta = answer
         .find("Петух в законе")
         .expect("the meta achievement is listed");
-    assert!(
-        answer.contains("▰▰▰▰▰▰▰▰▱▱ <code>40/50</code>"),
-        "personal answer was '{answer}', expected forty of fifty to fill eight bar cells of ten"
-    );
-    assert!(
-        closest < farthest && farthest < meta,
-        "locked order was closest={closest}, farthest={farthest}, meta={meta} in '{answer}', expected the achievement nearer its threshold before the farther one, and the no-progress meta achievement last"
-    );
+    assert_that!(answer.as_str())
+        .named("personal answer")
+        .contains("▰▰▰▰▰▰▰▰▱▱ <code>40/50</code>");
+    assert_that!(closest)
+        .named("position of the closest achievement")
+        .is_less_than(farthest);
+    assert_that!(farthest)
+        .named("position of the farthest achievement")
+        .is_less_than(meta);
+}
+
+#[tokio::test]
+async fn ranks_members_by_how_many_achievements_they_own() {
+    let store = Arc::new(Store::in_memory().unwrap());
+    store
+        .upsert_member(
+            DEFAULT_CHAT,
+            1,
+            Some("first"),
+            "Первый",
+            "2026-08-07T10:00:00Z",
+        )
+        .unwrap();
+    store
+        .upsert_member(
+            DEFAULT_CHAT,
+            2,
+            Some("second"),
+            "Второй",
+            "2026-08-07T10:00:00Z",
+        )
+        .unwrap();
+    store
+        .unlock(DEFAULT_CHAT, 1, "terpim", "2026-08-01T10:00:00Z")
+        .unwrap();
+    store
+        .unlock(DEFAULT_CHAT, 1, "haha", "2026-08-02T10:00:00Z")
+        .unwrap();
+    store
+        .unlock(DEFAULT_CHAT, 2, "robot", "2026-08-01T10:00:00Z")
+        .unwrap();
+    let answer = answer_of("/top", &store).await;
+    let first = answer.find("Первый").expect("the leader is listed");
+    let second = answer.find("Второй").expect("the runner up is listed");
+    assert_that!(answer.as_str())
+        .named("leaderboard")
+        .contains("🥇")
+        .contains("2 из 17");
+    assert_that!(first)
+        .named("position of the leader")
+        .is_less_than(second);
+}
+
+#[tokio::test]
+async fn puts_the_earlier_finisher_first_on_a_tie() {
+    let store = Arc::new(Store::in_memory().unwrap());
+    store
+        .upsert_member(
+            DEFAULT_CHAT,
+            1,
+            Some("late"),
+            "Поздний",
+            "2026-08-07T10:00:00Z",
+        )
+        .unwrap();
+    store
+        .upsert_member(
+            DEFAULT_CHAT,
+            2,
+            Some("early"),
+            "Ранний",
+            "2026-08-07T10:00:00Z",
+        )
+        .unwrap();
+    store
+        .unlock(DEFAULT_CHAT, 1, "terpim", "2026-08-05T10:00:00Z")
+        .unwrap();
+    store
+        .unlock(DEFAULT_CHAT, 2, "haha", "2026-08-01T10:00:00Z")
+        .unwrap();
+    let answer = answer_of("/top", &store).await;
+    let early = answer.find("Ранний").expect("the early finisher is listed");
+    let late = answer.find("Поздний").expect("the late finisher is listed");
+    assert_that!(early)
+        .named("position of the earlier finisher")
+        .is_less_than(late);
+}
+
+#[tokio::test]
+async fn falls_back_to_the_numeric_id_when_an_achiever_has_no_member_row() {
+    let store = Arc::new(Store::in_memory().unwrap());
+    let achiever = 777;
+    store
+        .unlock(DEFAULT_CHAT, achiever, "terpim", "2026-08-07T10:00:00Z")
+        .unwrap();
+    let answer = answer_of("/top", &store).await;
+    assert_that!(answer.as_str())
+        .named("leaderboard entry of an achiever with no members row")
+        .contains(achiever.to_string());
+}
+
+#[tokio::test]
+async fn says_so_when_nobody_collected_anything() {
+    let store = Arc::new(Store::in_memory().unwrap());
+    let answer = answer_of("/top", &store).await;
+    assert_that!(answer.as_str())
+        .named("empty leaderboard")
+        .contains("Пока никто ничего не собрал");
+}
+
+#[tokio::test]
+async fn answers_with_a_phrase_that_is_not_a_quote() {
+    let store = Arc::new(Store::in_memory().unwrap());
+    let answer = answer_of("/bred", &store).await;
+    let escaped_quotes = store
+        .all_quotes()
+        .expect("the quotes are readable")
+        .iter()
+        .map(|quote| escape(quote))
+        .collect::<Vec<String>>();
+    assert_that!(answer.as_str())
+        .named("generated phrase")
+        .is_not_empty()
+        .is_not_equal_to("Нечего сказать. Терпим.");
+    assert_that!(escaped_quotes)
+        .named("escaped quotes")
+        .does_not_contain(answer);
 }

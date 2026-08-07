@@ -225,6 +225,8 @@ pub fn unlocked(stats: &Stats, owned: &HashSet<String>) -> Vec<Achievement> {
 mod tests {
     use std::collections::{HashMap, HashSet};
 
+    use asserting::prelude::*;
+
     use super::{Achievement, PETUKH_ACHIEVEMENTS, Stats, unlocked};
 
     fn stats(pairs: &[(&str, i64)]) -> Stats {
@@ -242,36 +244,30 @@ mod tests {
             .iter()
             .map(|achievement| achievement.code())
             .collect::<HashSet<&str>>();
-        assert_eq!(
-            codes.len(),
-            Achievement::ALL.len(),
-            "unique codes were '{}', expected '{}'",
-            codes.len(),
-            Achievement::ALL.len()
-        );
+        assert_that!(codes.len())
+            .named("unique achievement codes")
+            .is_equal_to(Achievement::ALL.len());
     }
 
     #[test]
     fn unlocks_a_counter_achievement_at_its_threshold() {
         let below = unlocked(&stats(&[("unanswered_streak", 9)]), &HashSet::new());
         let at = unlocked(&stats(&[("unanswered_streak", 10)]), &HashSet::new());
-        assert_eq!(
-            (below.len(), at.first().map(Achievement::code)),
-            (0, Some("terpim")),
-            "unlocking below and at the threshold reported '{:?}', expected none then 'terpim'",
-            (below.len(), at.first().map(Achievement::code))
-        );
+        assert_that!(below.len())
+            .named("achievements unlocked below the threshold")
+            .is_equal_to(0);
+        assert_that!(at.first().map(Achievement::code))
+            .named("achievement unlocked at the threshold")
+            .is_equal_to(Some("terpim"));
     }
 
     #[test]
     fn skips_an_achievement_the_member_already_owns() {
         let owned = HashSet::from(["terpim".to_string()]);
         let given = unlocked(&stats(&[("unanswered_streak", 40)]), &owned);
-        assert!(
-            given.is_empty(),
-            "unlocking an owned achievement reported '{:?}', expected none",
-            given.iter().map(|a| a.code()).collect::<Vec<&str>>()
-        );
+        assert_that!(given)
+            .named("unlocking an owned achievement")
+            .is_empty();
     }
 
     #[test]
@@ -281,12 +277,9 @@ mod tests {
             .map(|code| (*code).to_string())
             .collect::<HashSet<String>>();
         let given = unlocked(&stats(&[]), &owned);
-        assert_eq!(
-            given.first().map(Achievement::code),
-            Some("petukh"),
-            "meta unlock reported '{:?}', expected 'petukh'",
-            given.first().map(Achievement::code)
-        );
+        assert_that!(given.first().map(Achievement::code))
+            .named("meta unlock")
+            .is_equal_to(Some("petukh"));
     }
 
     #[test]
@@ -295,12 +288,9 @@ mod tests {
             &stats(&[("mention:8", 12), ("mention:9", 50)]),
             &HashSet::new(),
         );
-        assert_eq!(
-            given.first().map(Achievement::code),
-            Some("ivanchuk"),
-            "mention unlock reported '{:?}', expected 'ivanchuk'",
-            given.first().map(Achievement::code)
-        );
+        assert_that!(given.first().map(Achievement::code))
+            .named("mention unlock")
+            .is_equal_to(Some("ivanchuk"));
     }
 
     enum Fixture {
@@ -351,23 +341,17 @@ mod tests {
                     unlocked(&stats(&[]), &owned)
                 }
             };
-            assert_eq!(
-                given.first().map(Achievement::code),
-                Some(achievement.code()),
-                "unlocking '{}' at its threshold reported '{:?}', expected it unlocked",
-                achievement.code(),
-                given.first().map(Achievement::code)
-            );
+            assert_that!(given.first().map(Achievement::code))
+                .named(achievement.code())
+                .is_equal_to(Some(achievement.code()));
         }
     }
 
     #[test]
     fn reports_progress_towards_a_counter_achievement() {
         let progress = Achievement::Terpim.progress(&stats(&[("unanswered_streak", 4)]));
-        assert_eq!(
-            progress,
-            Some((4, 10)),
-            "progress was '{progress:?}', expected 'Some((4, 10))'"
-        );
+        assert_that!(progress)
+            .named("progress towards terpim")
+            .is_equal_to(Some((4, 10)));
     }
 }
