@@ -36,7 +36,7 @@ pub async fn observe(store: Arc<Store>, reaction: MessageReactionUpdated) -> Res
     };
     if let Some(quote) = owner.quote
         && reaction.old_reaction.is_empty()
-        && let Err(error) = store.bump_quote_score(quote, 1)
+        && let Err(error) = store.bump_quote_score(quote)
     {
         log::error!("score of quote '{quote}' was not raised: '{error}'");
     }

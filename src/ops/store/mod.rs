@@ -182,11 +182,11 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the statement cannot be executed.
-    pub fn bump_quote_score(&self, quote: i64, by: i64) -> rusqlite::Result<()> {
+    pub fn bump_quote_score(&self, quote: i64) -> rusqlite::Result<()> {
         self.with(|connection| {
             connection.execute(
-                "UPDATE quotes SET score = score + ?2 WHERE id = ?1",
-                params![quote, by],
+                "UPDATE quotes SET score = score + 1 WHERE id = ?1",
+                params![quote],
             )?;
             Ok(())
         })
@@ -538,8 +538,8 @@ mod tests {
                 connection.query_row("SELECT id FROM quotes LIMIT 1", [], |row| row.get(0))
             })
             .unwrap();
-        store.bump_quote_score(id, 1).unwrap();
-        store.bump_quote_score(id, 1).unwrap();
+        store.bump_quote_score(id).unwrap();
+        store.bump_quote_score(id).unwrap();
         let score: i64 = store
             .with(|connection| {
                 connection.query_row("SELECT score FROM quotes WHERE id = ?1", [id], |row| {
