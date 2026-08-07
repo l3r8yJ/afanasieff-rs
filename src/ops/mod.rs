@@ -1,4 +1,5 @@
 pub mod achievements;
+pub mod chance;
 pub mod commands;
 pub mod consts;
 pub mod error;

@@ -20,6 +20,8 @@ pub async fn start_cron(bot: Bot, store: Arc<Store>, shutdown: CancellationToken
     }
 }
 
+const GENERATED_IN_CRON: f64 = 0.25;
+
 async fn send_to_every_chat(bot: &Bot, store: &Store) {
     let chats = match store.chats() {
         Ok(chats) => chats,
@@ -29,18 +31,32 @@ async fn send_to_every_chat(bot: &Bot, store: &Store) {
         }
     };
     for id in chats {
-        let quote = match store.random_quote(MATTHEW_SOURCE) {
-            Ok(Some(quote)) => quote,
-            Ok(None) => {
-                log::debug!("no quote of source '{MATTHEW_SOURCE}' to send to chat '{id}'");
-                continue;
+        let generated = if rng().random_bool(GENERATED_IN_CRON) {
+            match store.all_quotes() {
+                Ok(corpus) => crate::ops::markov::generate(&corpus, &mut rng()),
+                Err(error) => {
+                    log::error!("corpus for chat '{id}' was not read: '{error}'");
+                    None
+                }
             }
-            Err(error) => {
-                log::error!("quote for chat '{id}' was not read: '{error}'");
-                continue;
-            }
+        } else {
+            None
         };
-        match bot.send_message(ChatId(id), quote).await {
+        let text = match generated {
+            Some(generated) => generated,
+            None => match store.random_quote(MATTHEW_SOURCE) {
+                Ok(Some(quote)) => quote,
+                Ok(None) => {
+                    log::debug!("no quote of source '{MATTHEW_SOURCE}' to send to chat '{id}'");
+                    continue;
+                }
+                Err(error) => {
+                    log::error!("quote for chat '{id}' was not read: '{error}'");
+                    continue;
+                }
+            },
+        };
+        match bot.send_message(ChatId(id), text).await {
             Ok(_) => log::info!("message sent for id: '{id}'"),
             Err(error) => log::error!("message for id '{id}' failed: '{error}'"),
         }

@@ -24,6 +24,8 @@ pub enum Command {
     MyAchievements,
     #[command(description = "кто сколько ачивок собрал")]
     Top,
+    #[command(description = "фраза, которой никто не говорил")]
+    Bred,
 }
 
 /// Answers the achievement commands.
@@ -41,6 +43,7 @@ pub async fn answer(
         Command::Achievements => catalogue(),
         Command::MyAchievements => personal(&message, &store),
         Command::Top => top(&message, &store),
+        Command::Bred => bred(&store),
     };
     bot.send_message(message.chat.id, text)
         .parse_mode(ParseMode::Html)
@@ -175,4 +178,12 @@ fn top(message: &Message, store: &Store) -> String {
         .collect::<Vec<String>>()
         .join("\n");
     format!("🏆 <b>Ачивки чата</b>\n\n{lines}")
+}
+
+fn bred(store: &Store) -> String {
+    let corpus = store.all_quotes().unwrap_or_default();
+    crate::ops::markov::generate(&corpus, &mut rand::rng()).map_or_else(
+        || "Нечего сказать. Терпим.".to_string(),
+        |phrase| escape(&phrase),
+    )
 }

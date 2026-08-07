@@ -45,6 +45,7 @@ async fn shows_locked_and_unlocked_achievements_of_the_caller() {
 
 #[tokio::test]
 async fn falls_through_to_the_quote_branch_when_text_merely_mentions_achievements() {
+    unsafe { std::env::set_var("AFANASIEFF_GENERATED_ON_KEYWORD", "0") };
     let store = Arc::new(Store::in_memory().unwrap());
     let answer = answer_of("achievements упоминают стрим", &store).await;
     let stream_quotes = store
@@ -182,4 +183,17 @@ async fn says_so_when_nobody_collected_anything() {
     assert_that!(answer.as_str())
         .named("empty leaderboard")
         .contains("Пока никто ничего не собрал");
+}
+
+#[tokio::test]
+async fn answers_with_a_phrase_that_is_not_a_quote() {
+    let store = Arc::new(Store::in_memory().unwrap());
+    let answer = answer_of("/bred", &store).await;
+    let quotes = store.all_quotes().expect("the quotes are readable");
+    assert_that!(answer.as_str())
+        .named("generated phrase")
+        .is_not_empty();
+    assert_that!(quotes)
+        .named("quotes")
+        .does_not_contain(answer);
 }

@@ -33,6 +33,7 @@ fn matthew_reply_tree() -> UpdateHandler<Error> {
 
 #[tokio::test]
 async fn replies_with_a_vinograd_quote_and_a_dung_reaction() {
+    unsafe { std::env::set_var("AFANASIEFF_GENERATED_ON_KEYWORD", "0") };
     let (mut bot, store) = bot_with_store("а виноград то вкусный");
     bot.dispatch().await;
     let responses = bot.get_responses();
@@ -68,6 +69,7 @@ async fn replies_with_a_vinograd_quote_and_a_dung_reaction() {
 
 #[tokio::test]
 async fn replies_with_a_stream_quote_and_a_clown_reaction() {
+    unsafe { std::env::set_var("AFANASIEFF_GENERATED_ON_KEYWORD", "0") };
     let (mut bot, store) = bot_with_store("когда стрим будет");
     bot.dispatch().await;
     let responses = bot.get_responses();
