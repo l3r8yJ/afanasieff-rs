@@ -30,29 +30,20 @@ const VERDICTS: &[&str] = &[
 ];
 
 #[derive(Debug)]
-pub struct Roll {
-    pub user: i64,
-    pub name: String,
-    pub total: i64,
-    pub streak: i64,
-    pub fresh: bool,
+struct Roll {
+    user: i64,
+    name: String,
+    total: i64,
+    streak: i64,
+    fresh: bool,
 }
 
-/// Returns the Moscow day the moment falls into, counted from the epoch.
 #[must_use]
-pub fn day_of(at: DateTime<Utc>) -> i64 {
+fn day_of(at: DateTime<Utc>) -> i64 {
     (at.timestamp() + MOSCOW_OFFSET_SECONDS).div_euclid(SECONDS_IN_DAY)
 }
 
-/// Draws the cuckold of the day, or repeats the one already drawn today.
-///
-/// Returns nothing when no member of the chat has been seen in the last thirty
-/// days, which is also the case for a chat the bot has never heard from.
-///
-/// # Errors
-///
-/// Returns an error when a statement cannot be executed.
-pub fn roll(
+fn roll(
     store: &Store,
     chat: i64,
     at: DateTime<Utc>,

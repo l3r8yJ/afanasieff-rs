@@ -341,18 +341,13 @@ impl Store {
     }
 }
 
-pub struct Member {
-    pub user: i64,
-    pub name: String,
+pub(crate) struct Member {
+    pub(crate) user: i64,
+    pub(crate) name: String,
 }
 
 impl Store {
-    /// Returns the members of the chat last seen at or after the given moment.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the query cannot be executed.
-    pub fn active_members(&self, chat: i64, since: &str) -> rusqlite::Result<Vec<Member>> {
+    pub(crate) fn active_members(&self, chat: i64, since: &str) -> rusqlite::Result<Vec<Member>> {
         self.with(|connection| {
             let mut statement = connection.prepare(
                 "SELECT user_id, first_name FROM members \
