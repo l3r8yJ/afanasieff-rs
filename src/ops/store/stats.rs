@@ -204,6 +204,73 @@ impl Store {
     }
 }
 
+const REMEMBERED_PER_CHAT: i64 = 500;
+
+#[derive(Debug)]
+pub struct MessageOwner {
+    pub user: i64,
+    pub quote: Option<i64>,
+}
+
+impl Store {
+    /// Records who wrote the message and, when given, which quote it carries.
+    ///
+    /// Writing the same message again refreshes the author and attaches a
+    /// quote, but never clears a quote that is already attached. Only the
+    /// newest messages of each chat are kept.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a statement cannot be executed.
+    pub fn remember_message(
+        &self,
+        chat: i64,
+        message: i32,
+        user: i64,
+        quote: Option<i64>,
+    ) -> rusqlite::Result<()> {
+        self.with(|connection| {
+            connection.execute(
+                "INSERT INTO message_owners (chat_id, message_id, user_id, quote_id) \
+                 VALUES (?1, ?2, ?3, ?4) \
+                 ON CONFLICT(chat_id, message_id) \
+                 DO UPDATE SET user_id = ?3, quote_id = COALESCE(?4, quote_id)",
+                params![chat, message, user, quote],
+            )?;
+            connection.execute(
+                "DELETE FROM message_owners WHERE chat_id = ?1 AND message_id NOT IN \
+                 (SELECT message_id FROM message_owners WHERE chat_id = ?1 \
+                  ORDER BY message_id DESC LIMIT ?2)",
+                params![chat, REMEMBERED_PER_CHAT],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Returns who wrote the message and which quote it carries.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn message_owner(&self, chat: i64, message: i32) -> rusqlite::Result<Option<MessageOwner>> {
+        self.with(|connection| {
+            connection
+                .query_row(
+                    "SELECT user_id, quote_id FROM message_owners \
+                     WHERE chat_id = ?1 AND message_id = ?2",
+                    params![chat, message],
+                    |row| {
+                        Ok(MessageOwner {
+                            user: row.get(0)?,
+                            quote: row.get(1)?,
+                        })
+                    },
+                )
+                .optional()
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use asserting::prelude::*;
@@ -354,5 +421,78 @@ mod tests {
         assert_that!(codes)
             .named("owned codes")
             .contains_exactly(["haha".to_string(), "terpim".to_string()]);
+    }
+
+    #[test]
+    fn remembers_who_wrote_a_message() {
+        let store = store();
+        store.remember_message(42, 7, 100, None).unwrap();
+        let owner = store.message_owner(42, 7).unwrap().unwrap();
+        assert_that!(owner.user)
+            .named("owner of the message")
+            .is_equal_to(100);
+        assert_that!(owner.quote)
+            .named("quote of a plain message")
+            .is_none();
+    }
+
+    #[test]
+    fn keeps_the_quote_when_a_later_write_does_not_carry_one() {
+        let store = store();
+        store.remember_message(42, 7, 100, Some(5)).unwrap();
+        store.remember_message(42, 7, 100, None).unwrap();
+        let owner = store.message_owner(42, 7).unwrap().unwrap();
+        assert_that!(owner.quote)
+            .named("quote after a write without one")
+            .is_some();
+    }
+
+    #[test]
+    fn attaches_a_quote_to_an_already_remembered_message() {
+        let store = store();
+        store.remember_message(42, 7, 100, None).unwrap();
+        store.remember_message(42, 7, 100, Some(9)).unwrap();
+        let owner = store.message_owner(42, 7).unwrap().unwrap();
+        assert_that!(owner.quote)
+            .named("quote attached later")
+            .is_equal_to(Some(9));
+    }
+
+    #[test]
+    fn forgets_a_message_that_fell_out_of_the_window() {
+        let store = store();
+        for message in 1..=520 {
+            store.remember_message(42, message, 100, None).unwrap();
+        }
+        let oldest = store.message_owner(42, 1).unwrap();
+        let newest = store.message_owner(42, 520).unwrap();
+        assert_that!(oldest)
+            .named("owner of the oldest message")
+            .is_none();
+        assert_that!(newest)
+            .named("owner of the newest message")
+            .is_some();
+    }
+
+    #[test]
+    fn keeps_the_windows_of_two_chats_apart() {
+        let store = store();
+        store.remember_message(42, 7, 100, None).unwrap();
+        for message in 1..=520 {
+            store.remember_message(-100, message, 200, None).unwrap();
+        }
+        let survived = store.message_owner(42, 7).unwrap();
+        assert_that!(survived)
+            .named("owner in the untouched chat")
+            .is_some();
+    }
+
+    #[test]
+    fn reports_no_owner_for_an_unknown_message() {
+        let store = store();
+        let owner = store.message_owner(42, 7).unwrap();
+        assert_that!(owner)
+            .named("owner of an unknown message")
+            .is_none();
     }
 }

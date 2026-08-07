@@ -10,6 +10,7 @@ pub const MATTHEW_USERNAME: &str = "MatthewAFN";
 const MIGRATIONS: &[&str] = &[
     include_str!("../../../migrations/0001_init.sql"),
     include_str!("../../../migrations/0002_achievements.sql"),
+    include_str!("../../../migrations/0003_reactions.sql"),
 ];
 
 pub struct Store {
