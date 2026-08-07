@@ -42,8 +42,10 @@ pub fn handler_tree() -> UpdateHandler<Error> {
                 }
                 !is_too_old
             }
+            UpdateKind::MessageReaction(_) => true,
             _ => false,
         })
+        .branch(Update::filter_message_reaction_updated().endpoint(ops::reactions::observe))
         .branch(
             Update::filter_message()
                 .filter_command::<ops::commands::Command>()

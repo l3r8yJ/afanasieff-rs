@@ -6,6 +6,7 @@ pub mod intake;
 pub mod markov;
 pub mod matthew;
 pub mod predicates;
+pub mod reactions;
 pub mod send;
 pub mod store;
 pub mod stream;

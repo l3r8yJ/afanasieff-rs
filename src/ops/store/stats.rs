@@ -116,6 +116,24 @@ impl Store {
         })
     }
 
+    /// Returns the username of the member, when they have one.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn member_username(&self, chat: i64, user: i64) -> rusqlite::Result<Option<String>> {
+        self.with(|connection| {
+            connection
+                .query_row(
+                    "SELECT username FROM members WHERE chat_id = ?1 AND user_id = ?2",
+                    params![chat, user],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map(Option::flatten)
+        })
+    }
+
     /// Returns every state value of the chat.
     ///
     /// # Errors

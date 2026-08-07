@@ -192,6 +192,21 @@ impl Store {
         })
     }
 
+    /// Returns the score of the quote.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn quote_score(&self, quote: i64) -> rusqlite::Result<i64> {
+        self.with(|connection| {
+            connection.query_row(
+                "SELECT score FROM quotes WHERE id = ?1",
+                params![quote],
+                |row| row.get(0),
+            )
+        })
+    }
+
     /// Returns every quote of every source, which is the corpus the generator
     /// builds its chain from.
     ///
