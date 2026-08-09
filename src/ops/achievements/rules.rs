@@ -17,6 +17,8 @@ const KLON_MONOLOGUES: i64 = 20;
 const IVANCHUK_MENTIONS: i64 = 50;
 const SOFIZM_MESSAGES: i64 = 50;
 const PETUKH_ACHIEVEMENTS: usize = 5;
+const CUCKOLD_DRAWS: i64 = 10;
+const DYNASTY_RUN: i64 = 5;
 
 pub struct Stats(HashMap<String, i64>);
 
@@ -61,6 +63,8 @@ pub enum Achievement {
     Ivanchuk,
     Sofizm,
     Petukh,
+    CuckoldVZakone,
+    Dinastiya,
 }
 
 impl Achievement {
@@ -82,6 +86,8 @@ impl Achievement {
         Self::Ivanchuk,
         Self::Sofizm,
         Self::Petukh,
+        Self::CuckoldVZakone,
+        Self::Dinastiya,
     ];
 
     #[must_use]
@@ -104,6 +110,8 @@ impl Achievement {
             Self::Ivanchuk => "ivanchuk",
             Self::Sofizm => "sofizm",
             Self::Petukh => "petukh",
+            Self::CuckoldVZakone => "cuckold_v_zakone",
+            Self::Dinastiya => "dinastiya",
         }
     }
 
@@ -127,6 +135,8 @@ impl Achievement {
             Self::Ivanchuk => "Иванчук, обработать",
             Self::Sofizm => "Ну понятно, софизм",
             Self::Petukh => "Петух в законе",
+            Self::CuckoldVZakone => "Куколд в законе",
+            Self::Dinastiya => "Династия",
         }
     }
 
@@ -150,6 +160,8 @@ impl Achievement {
             Self::Ivanchuk => "50 тегов одного и того же человека",
             Self::Sofizm => "50 сообщений длиннее 300 символов",
             Self::Petukh => "собрать пять любых других",
+            Self::CuckoldVZakone => "десять раз стать куколдом дня",
+            Self::Dinastiya => "пять дней куколдом подряд",
         }
     }
 
@@ -175,6 +187,8 @@ impl Achievement {
             Self::Ivanchuk => "он за меня общается.",
             Self::Sofizm => "Казалось бы.",
             Self::Petukh => "я петух в законе.",
+            Self::CuckoldVZakone => "Манифест куколдистической партии принят. Ты его председатель.",
+            Self::Dinastiya => "Не понял, куколд моя бабушка?",
         }
     }
 
@@ -198,6 +212,8 @@ impl Achievement {
             Self::Ivanchuk => Some((stats.max_with_prefix("mention:"), IVANCHUK_MENTIONS)),
             Self::Sofizm => Some((stats.get("long_messages"), SOFIZM_MESSAGES)),
             Self::Petukh => None,
+            Self::CuckoldVZakone => Some((stats.get("cuckold_days"), CUCKOLD_DRAWS)),
+            Self::Dinastiya => Some((stats.get("cuckold_best"), DYNASTY_RUN)),
         }
     }
 
@@ -293,43 +309,69 @@ mod tests {
             .is_equal_to(Some("ivanchuk"));
     }
 
+    #[test]
+    fn unlocks_the_lawful_cuckold_at_ten_draws() {
+        let below = unlocked(&stats(&[("cuckold_days", 9)]), &HashSet::new());
+        let at = unlocked(&stats(&[("cuckold_days", 10)]), &HashSet::new());
+        assert_that!(below.len())
+            .named("unlocked below the threshold")
+            .is_equal_to(0);
+        assert_that!(at.first().map(Achievement::code))
+            .named("unlocked at the threshold")
+            .is_equal_to(Some("cuckold_v_zakone"));
+    }
+
+    #[test]
+    fn unlocks_the_dynasty_at_a_run_of_five() {
+        let below = unlocked(&stats(&[("cuckold_best", 4)]), &HashSet::new());
+        let at = unlocked(&stats(&[("cuckold_best", 5)]), &HashSet::new());
+        assert_that!(below.len())
+            .named("unlocked below the run")
+            .is_equal_to(0);
+        assert_that!(at.first().map(Achievement::code))
+            .named("unlocked at the run")
+            .is_equal_to(Some("dinastiya"));
+    }
+
     enum Fixture {
         Counter(&'static str),
         Owned,
     }
 
+    fn fixture_for(achievement: Achievement) -> Fixture {
+        match achievement {
+            Achievement::Terpim => Fixture::Counter("unanswered_streak"),
+            Achievement::Opravdan => Fixture::Counter("apologies"),
+            Achievement::OdinNaOdin => Fixture::Counter("chain_len"),
+            Achievement::Shorty => Fixture::Counter("longest_message"),
+            Achievement::Potolok => Fixture::Counter("night_messages"),
+            Achievement::Belogvardeec => Fixture::Counter("politics"),
+            Achievement::Vpn => Fixture::Counter("ignored_pings"),
+            Achievement::Gavnil => Fixture::Counter("bot_replies"),
+            Achievement::Lysina => Fixture::Counter("vinograd_mentions"),
+            Achievement::SsalStream => Fixture::Counter("stream_mentions"),
+            Achievement::Haha => Fixture::Counter("laugh_only"),
+            Achievement::Robot => Fixture::Counter("replies_to_bot"),
+            Achievement::VseZanyaty => Fixture::Counter("unanswered_calls"),
+            Achievement::Klon => Fixture::Counter("monologues"),
+            Achievement::Ivanchuk => Fixture::Counter("mention:1"),
+            Achievement::Sofizm => Fixture::Counter("long_messages"),
+            Achievement::Petukh => Fixture::Owned,
+            Achievement::CuckoldVZakone => Fixture::Counter("cuckold_days"),
+            Achievement::Dinastiya => Fixture::Counter("cuckold_best"),
+        }
+    }
+
     #[test]
     fn unlocks_every_achievement_at_exactly_its_own_threshold() {
-        let cases: &[(Achievement, Fixture)] = &[
-            (Achievement::Terpim, Fixture::Counter("unanswered_streak")),
-            (Achievement::Opravdan, Fixture::Counter("apologies")),
-            (Achievement::OdinNaOdin, Fixture::Counter("chain_len")),
-            (Achievement::Shorty, Fixture::Counter("longest_message")),
-            (Achievement::Potolok, Fixture::Counter("night_messages")),
-            (Achievement::Belogvardeec, Fixture::Counter("politics")),
-            (Achievement::Vpn, Fixture::Counter("ignored_pings")),
-            (Achievement::Gavnil, Fixture::Counter("bot_replies")),
-            (Achievement::Lysina, Fixture::Counter("vinograd_mentions")),
-            (Achievement::SsalStream, Fixture::Counter("stream_mentions")),
-            (Achievement::Haha, Fixture::Counter("laugh_only")),
-            (Achievement::Robot, Fixture::Counter("replies_to_bot")),
-            (
-                Achievement::VseZanyaty,
-                Fixture::Counter("unanswered_calls"),
-            ),
-            (Achievement::Klon, Fixture::Counter("monologues")),
-            (Achievement::Ivanchuk, Fixture::Counter("mention:1")),
-            (Achievement::Sofizm, Fixture::Counter("long_messages")),
-            (Achievement::Petukh, Fixture::Owned),
-        ];
-        for (achievement, fixture) in cases {
-            let given = match fixture {
+        for achievement in Achievement::ALL.iter().copied() {
+            let given = match fixture_for(achievement) {
                 Fixture::Counter(key) => {
                     let threshold = achievement
                         .progress(&Stats::new(HashMap::new()))
                         .expect("a counter achievement reports its own threshold")
                         .1;
-                    unlocked(&stats(&[(*key, threshold)]), &HashSet::new())
+                    unlocked(&stats(&[(key, threshold)]), &HashSet::new())
                 }
                 Fixture::Owned => {
                     let owned = Achievement::ALL

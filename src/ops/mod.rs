@@ -3,7 +3,6 @@ pub mod chance;
 pub mod commands;
 pub mod consts;
 pub mod cuckold;
-pub mod error;
 pub mod intake;
 pub mod markov;
 pub mod matthew;

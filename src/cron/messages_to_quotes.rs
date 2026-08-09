@@ -29,7 +29,7 @@ fn promote_one_message(store: &Store) {
         ),
         Ok(None) => log::debug!("no matthew messages waiting to be promoted"),
         Err(error) => {
-            log::error!("matthew message was not promoted into source '{source}': '{error}'");
+            log::error!("matthew message was not promoted into source '{source}': '{error:#}'");
         }
     }
 }

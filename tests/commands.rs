@@ -39,7 +39,7 @@ async fn shows_locked_and_unlocked_achievements_of_the_caller() {
     let answer = answer_of("/my_achievements", &store).await;
     assert_that!(answer.as_str())
         .named("personal answer")
-        .contains("0 из 17")
+        .contains("0 из 19")
         .contains("🔒")
         .contains("▱▱▱▱▱▱▱▱▱▱");
 }
@@ -66,7 +66,7 @@ async fn joins_the_header_and_the_locked_list_with_a_single_blank_line_when_noth
     let answer = answer_of("/my_achievements", &store).await;
     assert_that!(answer.as_str())
         .named("personal answer with nothing owned")
-        .contains("0 из 17")
+        .contains("0 из 19")
         .does_not_contain("\n\n\n");
 }
 
@@ -136,7 +136,7 @@ async fn ranks_members_by_how_many_achievements_they_own() {
     assert_that!(answer.as_str())
         .named("leaderboard")
         .contains("🥇")
-        .contains("2 из 17");
+        .contains("2 из 19");
     assert_that!(first)
         .named("position of the leader")
         .is_less_than(second);

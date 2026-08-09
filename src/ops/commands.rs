@@ -9,7 +9,6 @@ use teloxide::utils::html::escape;
 
 use crate::ops::achievements::rules::{Achievement, Stats};
 use crate::ops::cuckold::announce;
-use crate::ops::error::Error;
 use crate::ops::store::Store;
 
 const BAR_CELLS: i64 = 10;
@@ -43,7 +42,7 @@ pub async fn answer(
     message: Message,
     command: Command,
     store: Arc<Store>,
-) -> Result<(), Error> {
+) -> anyhow::Result<()> {
     let text = match command {
         Command::Cuckold => return announce(&bot, &message, &store).await,
         Command::CuckoldStats => crate::ops::cuckold::stats(&message, &store),
@@ -82,16 +81,29 @@ fn personal(message: &Message, store: &Store) -> String {
     };
     let chat = message.chat.id.0;
     let user = i64::try_from(author.id.0).unwrap_or(i64::MAX);
-    let stats = Stats::new(store.stats(chat, user).unwrap_or_default());
-    let owned = store.owned(chat, user).unwrap_or_default();
+    let stats = Stats::new(store.stats(chat, user).unwrap_or_else(|error| {
+        log::error!("stats of member '{user}' in chat '{chat}' were not read: '{error:#}'");
+        Default::default()
+    }));
+    let owned = store.owned(chat, user).unwrap_or_else(|error| {
+        log::error!(
+            "achievements owned by member '{user}' in chat '{chat}' were not read: '{error:#}'"
+        );
+        Default::default()
+    });
     let mut unlocked = Vec::new();
     let mut locked = Vec::new();
     for achievement in Achievement::ALL.iter().copied() {
         if owned.contains(achievement.code()) {
             let at = store
                 .unlocked_at(chat, user, achievement.code())
-                .ok()
-                .flatten()
+                .unwrap_or_else(|error| {
+                    log::error!(
+                        "unlock timestamp of achievement '{}' for member '{user}' in chat '{chat}' was not read: '{error:#}'",
+                        achievement.code()
+                    );
+                    None
+                })
                 .unwrap_or_default();
             unlocked.push(format!(
                 "🏅 <b>{}</b> · <i>{}</i>",
@@ -160,7 +172,11 @@ fn day_of(timestamp: &str) -> String {
 const MEDALS: &[&str] = &["🥇", "🥈", "🥉"];
 
 fn top(message: &Message, store: &Store) -> String {
-    let standings = store.leaderboard(message.chat.id.0).unwrap_or_default();
+    let chat = message.chat.id.0;
+    let standings = store.leaderboard(chat).unwrap_or_else(|error| {
+        log::error!("leaderboard of chat '{chat}' was not read: '{error:#}'");
+        Default::default()
+    });
     if standings.is_empty() {
         return "🏆 <b>Ачивки чата</b>\n\nПока никто ничего не собрал. Терпим.".to_string();
     }
@@ -188,7 +204,10 @@ fn top(message: &Message, store: &Store) -> String {
 }
 
 fn bred(store: &Store) -> String {
-    let corpus = store.all_quotes().unwrap_or_default();
+    let corpus = store.all_quotes().unwrap_or_else(|error| {
+        log::error!("corpus of every quote was not read: '{error:#}'");
+        Default::default()
+    });
     crate::ops::markov::generate(&corpus, &mut rand::rng()).map_or_else(
         || "Нечего сказать. Терпим.".to_string(),
         |phrase| escape(&phrase),

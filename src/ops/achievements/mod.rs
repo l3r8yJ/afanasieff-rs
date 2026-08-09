@@ -31,7 +31,7 @@ pub async fn track_and_award(bot: &Bot, store: &Store, update: &Update) {
         Ok(true) => {}
         Err(error) => {
             log::error!(
-                "message '{}' in chat '{}' was not counted: '{error}'",
+                "message '{}' in chat '{}' was not counted: '{error:#}'",
                 event.message_id,
                 event.chat
             );
@@ -60,7 +60,10 @@ fn earned(store: &Store, event: &Event) -> Vec<Achievement> {
     let stats = match store.stats(event.chat, event.user) {
         Ok(stats) => Stats::new(stats),
         Err(error) => {
-            log::error!("stats of member '{}' were not read: '{error}'", event.user);
+            log::error!(
+                "stats of member '{}' were not read: '{error:#}'",
+                event.user
+            );
             return Vec::new();
         }
     };
@@ -68,7 +71,7 @@ fn earned(store: &Store, event: &Event) -> Vec<Achievement> {
         Ok(owned) => owned,
         Err(error) => {
             log::error!(
-                "achievements of member '{}' were not read: '{error}'",
+                "achievements of member '{}' were not read: '{error:#}'",
                 event.user
             );
             return Vec::new();
@@ -84,7 +87,7 @@ pub fn record_bot_reply(store: &Store, message: &teloxide::types::Message) {
     let chat = message.chat.id.0;
     let user = i64::try_from(author.id.0).unwrap_or(i64::MAX);
     if let Err(error) = store.bump(chat, user, "bot_replies", 1) {
-        log::error!("bot reply to member '{user}' in chat '{chat}' was not counted: '{error}'");
+        log::error!("bot reply to member '{user}' in chat '{chat}' was not counted: '{error:#}'");
     }
 }
 
@@ -100,7 +103,7 @@ async fn award(bot: &Bot, store: &Store, event: &Event, achievement: Achievement
         Ok(false) => return,
         Err(error) => {
             log::error!(
-                "achievement '{}' of member '{}' was not stored: '{error}'",
+                "achievement '{}' of member '{}' was not stored: '{error:#}'",
                 achievement.code(),
                 event.user
             );

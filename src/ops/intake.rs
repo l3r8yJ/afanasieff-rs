@@ -12,7 +12,7 @@ pub fn observe(store: &Store, update: Update) {
     };
     let chat = message.chat.id.0;
     if let Err(error) = store.remember_chat(chat) {
-        log::error!("chat id: '{chat}' was not remembered: '{error}'");
+        log::error!("chat id: '{chat}' was not remembered: '{error:#}'");
         return;
     }
     log::info!("chat id: '{chat}' remembered");
@@ -20,7 +20,7 @@ pub fn observe(store: &Store, update: Update) {
         let user = i64::try_from(author.id.0).unwrap_or(i64::MAX);
         if let Err(error) = store.remember_message(chat, message.id.0, user, None) {
             log::error!(
-                "message '{}' in chat '{chat}' was not remembered: '{error}'",
+                "message '{}' in chat '{chat}' was not remembered: '{error:#}'",
                 message.id.0
             );
         }
@@ -56,7 +56,7 @@ fn collect_matthew_message(store: &Store, message: &Message, chat: i64) {
             log::info!("matthew message '{id}' in chat '{chat}' was already collected, skipping");
         }
         Err(error) => {
-            log::error!("matthew message '{id}' in chat '{chat}' was not collected: '{error}'");
+            log::error!("matthew message '{id}' in chat '{chat}' was not collected: '{error:#}'");
         }
     }
 }

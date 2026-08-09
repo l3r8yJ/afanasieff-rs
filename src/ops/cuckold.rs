@@ -10,7 +10,6 @@ use teloxide::prelude::Requester;
 use teloxide::types::{ChatId, Message, ParseMode};
 use teloxide::utils::html::{escape, user_mention};
 
-use crate::ops::error::Error;
 use crate::ops::store::Store;
 
 const MOSCOW_OFFSET_SECONDS: i64 = 3 * 3600;
@@ -48,7 +47,7 @@ fn roll(
     chat: i64,
     at: DateTime<Utc>,
     rng: &mut impl Rng,
-) -> rusqlite::Result<Option<Roll>> {
+) -> anyhow::Result<Option<Roll>> {
     let today = day_of(at);
     let state = store.state(chat)?;
     let drawn_on = state.get("cuckold_day").copied().unwrap_or_default();
@@ -83,7 +82,7 @@ fn roll(
     }))
 }
 
-fn repeat(store: &Store, chat: i64, user: i64) -> rusqlite::Result<Option<Roll>> {
+fn repeat(store: &Store, chat: i64, user: i64) -> anyhow::Result<Option<Roll>> {
     let Some(name) = store.member_name(chat, user)? else {
         return Ok(None);
     };
@@ -107,14 +106,14 @@ pub fn set_drumroll_for_tests(millis: u64) {
 /// # Errors
 ///
 /// Returns an error when the answer cannot be sent.
-pub async fn announce(bot: &Bot, message: &Message, store: &Store) -> Result<(), Error> {
+pub async fn announce(bot: &Bot, message: &Message, store: &Store) -> anyhow::Result<()> {
     let chat = message.chat.id;
     let outcome = roll(store, chat.0, message.date, &mut rand::rng());
     let drawn = match outcome {
         Ok(Some(drawn)) => drawn,
         Ok(None) => return reply_and_stop(bot, chat, "Играть не с кем. Терпим.").await,
         Err(error) => {
-            log::error!("cuckold of chat '{}' was not drawn: '{error}'", chat.0);
+            log::error!("cuckold of chat '{}' was not drawn: '{error:#}'", chat.0);
             return reply_and_stop(bot, chat, "Бля, я обосрался. Попробуйте позже.").await;
         }
     };
@@ -136,7 +135,7 @@ pub async fn announce(bot: &Bot, message: &Message, store: &Store) -> Result<(),
     Ok(())
 }
 
-async fn reply_and_stop(bot: &Bot, chat: ChatId, text: &str) -> Result<(), Error> {
+async fn reply_and_stop(bot: &Bot, chat: ChatId, text: &str) -> anyhow::Result<()> {
     bot.send_message(chat, text).await?;
     Ok(())
 }
@@ -172,7 +171,7 @@ pub fn stats(message: &Message, store: &Store) -> String {
     let ranked = match store.ranking(chat, "cuckold_days") {
         Ok(ranked) => ranked,
         Err(error) => {
-            log::error!("cuckold ranking of chat '{chat}' was not read: '{error}'");
+            log::error!("cuckold ranking of chat '{chat}' was not read: '{error:#}'");
             return "Бля, я обосрался. Попробуйте позже.".to_string();
         }
     };
@@ -192,7 +191,13 @@ pub fn stats(message: &Message, store: &Store) -> String {
                 .unwrap_or_else(|| standing.user.to_string());
             let best = store
                 .stat(chat, standing.user, "cuckold_best")
-                .unwrap_or_default();
+                .unwrap_or_else(|error| {
+                    log::error!(
+                        "cuckold_best of member '{}' in chat '{chat}' was not read: '{error:#}'",
+                        standing.user
+                    );
+                    Default::default()
+                });
             let run = if best > 1 {
                 format!(" · лучшая серия {best}")
             } else {
@@ -214,7 +219,9 @@ fn today(message: &Message, store: &Store) -> String {
     let state = match store.state(chat) {
         Ok(state) => state,
         Err(error) => {
-            log::error!("chat state of chat '{chat}' was not read for today's cuckold: '{error}'");
+            log::error!(
+                "chat state of chat '{chat}' was not read for today's cuckold: '{error:#}'"
+            );
             return String::new();
         }
     };
@@ -227,7 +234,7 @@ fn today(message: &Message, store: &Store) -> String {
         Ok(Some(name)) => format!("\n\nСегодня: {}", escape(&name)),
         Ok(None) => String::new(),
         Err(error) => {
-            log::error!("name of cuckold '{drawn}' in chat '{chat}' was not read: '{error}'");
+            log::error!("name of cuckold '{drawn}' in chat '{chat}' was not read: '{error:#}'");
             String::new()
         }
     }
@@ -391,7 +398,7 @@ mod tests {
     fn fails_to_roll_when_the_chat_state_table_is_gone() {
         let store = store_with_one_member();
         store
-            .with(|connection| connection.execute_batch("DROP TABLE chat_state"))
+            .with(|connection| Ok(connection.execute_batch("DROP TABLE chat_state")?))
             .unwrap();
         let drawn = roll(&store, CHAT, at(7, 10), &mut seeded());
         assert_that!(drawn)
@@ -403,7 +410,7 @@ mod tests {
     fn admits_fault_when_the_ranking_cannot_be_read_instead_of_calling_the_chat_empty() {
         let store = Store::in_memory().unwrap();
         store
-            .with(|connection| connection.execute_batch("DROP TABLE member_stats"))
+            .with(|connection| Ok(connection.execute_batch("DROP TABLE member_stats")?))
             .unwrap();
         let message = MockMessageText::new().text("/cuckold_stats").build();
         let rendered = stats(&message, &store);

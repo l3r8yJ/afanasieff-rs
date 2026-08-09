@@ -24,7 +24,7 @@ async fn send_to_every_chat(bot: &Bot, store: &Store) {
     let chats = match store.chats() {
         Ok(chats) => chats,
         Err(error) => {
-            log::error!("chats were not read: '{error}'");
+            log::error!("chats were not read: '{error:#}'");
             return;
         }
     };
@@ -33,7 +33,7 @@ async fn send_to_every_chat(bot: &Bot, store: &Store) {
             match store.all_quotes() {
                 Ok(corpus) => crate::ops::markov::generate(&corpus, &mut rng()),
                 Err(error) => {
-                    log::error!("corpus for chat '{id}' was not read: '{error}'");
+                    log::error!("corpus for chat '{id}' was not read: '{error:#}'");
                     None
                 }
             }
@@ -49,7 +49,7 @@ async fn send_to_every_chat(bot: &Bot, store: &Store) {
                     continue;
                 }
                 Err(error) => {
-                    log::error!("quote for chat '{id}' was not read: '{error}'");
+                    log::error!("quote for chat '{id}' was not read: '{error:#}'");
                     continue;
                 }
             },
@@ -82,7 +82,6 @@ mod tests {
 
     use crate::ops::chance;
     use crate::ops::consts::MATTHEW_SOURCE;
-    use crate::ops::error::Error;
     use crate::ops::store::Store;
 
     use super::send_to_every_chat;
@@ -91,12 +90,12 @@ mod tests {
 
     const CHAT: i64 = 12_345_678;
 
-    async fn drive(bot: Bot, store: Arc<Store>) -> Result<(), Error> {
+    async fn drive(bot: Bot, store: Arc<Store>) -> anyhow::Result<()> {
         send_to_every_chat(&bot, &store).await;
         Ok(())
     }
 
-    fn tree() -> UpdateHandler<Error> {
+    fn tree() -> UpdateHandler<anyhow::Error> {
         dptree::entry().branch(Update::filter_message().endpoint(drive))
     }
 

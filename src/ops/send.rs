@@ -42,6 +42,9 @@ pub(crate) fn remember(store: &Store, sent: &Message, quote: Option<i64>) {
     };
     let user = i64::try_from(author.id.0).unwrap_or(i64::MAX);
     if let Err(error) = store.remember_message(sent.chat.id.0, sent.id.0, user, quote) {
-        log::error!("sent message '{}' was not remembered: '{error}'", sent.id.0);
+        log::error!(
+            "sent message '{}' was not remembered: '{error:#}'",
+            sent.id.0
+        );
     }
 }

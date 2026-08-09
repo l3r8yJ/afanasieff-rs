@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use anyhow::Context;
 use rusqlite::{OptionalExtension, params};
 
 use crate::ops::store::Store;
@@ -10,15 +11,20 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the statement cannot be executed.
-    pub fn bump(&self, chat: i64, user: i64, key: &str, by: i64) -> rusqlite::Result<i64> {
+    pub fn bump(&self, chat: i64, user: i64, key: &str, by: i64) -> anyhow::Result<i64> {
         self.with(|connection| {
-            connection.query_row(
-                "INSERT INTO member_stats (chat_id, user_id, key, value) VALUES (?1, ?2, ?3, ?4) \
-                 ON CONFLICT(chat_id, user_id, key) DO UPDATE SET value = value + ?4 \
-                 RETURNING value",
-                params![chat, user, key, by],
-                |row| row.get(0),
-            )
+            let value = connection
+                .query_row(
+                    "INSERT INTO member_stats (chat_id, user_id, key, value) VALUES (?1, ?2, ?3, ?4) \
+                     ON CONFLICT(chat_id, user_id, key) DO UPDATE SET value = value + ?4 \
+                     RETURNING value",
+                    params![chat, user, key, by],
+                    |row| row.get(0),
+                )
+                .with_context(|| {
+                    format!("bumping counter '{key}' of member '{user}' in chat '{chat}'")
+                })?;
+            Ok(value)
         })
     }
 
@@ -27,13 +33,17 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the statement cannot be executed.
-    pub fn set_stat(&self, chat: i64, user: i64, key: &str, value: i64) -> rusqlite::Result<()> {
+    pub fn set_stat(&self, chat: i64, user: i64, key: &str, value: i64) -> anyhow::Result<()> {
         self.with(|connection| {
-            connection.execute(
-                "INSERT INTO member_stats (chat_id, user_id, key, value) VALUES (?1, ?2, ?3, ?4) \
-                 ON CONFLICT(chat_id, user_id, key) DO UPDATE SET value = ?4",
-                params![chat, user, key, value],
-            )?;
+            connection
+                .execute(
+                    "INSERT INTO member_stats (chat_id, user_id, key, value) VALUES (?1, ?2, ?3, ?4) \
+                     ON CONFLICT(chat_id, user_id, key) DO UPDATE SET value = ?4",
+                    params![chat, user, key, value],
+                )
+                .with_context(|| {
+                    format!("setting counter '{key}' of member '{user}' in chat '{chat}'")
+                })?;
             Ok(())
         })
     }
@@ -43,9 +53,9 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the query cannot be executed.
-    pub fn stat(&self, chat: i64, user: i64, key: &str) -> rusqlite::Result<i64> {
+    pub fn stat(&self, chat: i64, user: i64, key: &str) -> anyhow::Result<i64> {
         self.with(|connection| {
-            connection
+            let value = connection
                 .query_row(
                     "SELECT value FROM member_stats WHERE chat_id = ?1 AND user_id = ?2 AND key = ?3",
                     params![chat, user, key],
@@ -53,6 +63,10 @@ impl Store {
                 )
                 .optional()
                 .map(Option::unwrap_or_default)
+                .with_context(|| {
+                    format!("reading counter '{key}' of member '{user}' in chat '{chat}'")
+                })?;
+            Ok(value)
         })
     }
 
@@ -61,14 +75,24 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the query cannot be executed.
-    pub fn stats(&self, chat: i64, user: i64) -> rusqlite::Result<HashMap<String, i64>> {
+    pub fn stats(&self, chat: i64, user: i64) -> anyhow::Result<HashMap<String, i64>> {
         self.with(|connection| {
-            let mut statement = connection.prepare(
-                "SELECT key, value FROM member_stats WHERE chat_id = ?1 AND user_id = ?2",
-            )?;
+            let mut statement = connection
+                .prepare("SELECT key, value FROM member_stats WHERE chat_id = ?1 AND user_id = ?2")
+                .with_context(|| {
+                    format!(
+                        "preparing the read of every counter of member '{user}' in chat '{chat}'"
+                    )
+                })?;
             let rows = statement
-                .query_map(params![chat, user], |row| Ok((row.get(0)?, row.get(1)?)))?
-                .collect::<rusqlite::Result<HashMap<String, i64>>>()?;
+                .query_map(params![chat, user], |row| Ok((row.get(0)?, row.get(1)?)))
+                .with_context(|| {
+                    format!("querying every counter of member '{user}' in chat '{chat}'")
+                })?
+                .collect::<rusqlite::Result<HashMap<String, i64>>>()
+                .with_context(|| {
+                    format!("reading every counter of member '{user}' in chat '{chat}'")
+                })?;
             Ok(rows)
         })
     }
@@ -85,15 +109,17 @@ impl Store {
         username: Option<&str>,
         first_name: &str,
         seen_at: &str,
-    ) -> rusqlite::Result<()> {
+    ) -> anyhow::Result<()> {
         self.with(|connection| {
-            connection.execute(
-                "INSERT INTO members (chat_id, user_id, username, first_name, last_seen) \
-                 VALUES (?1, ?2, ?3, ?4, ?5) \
-                 ON CONFLICT(chat_id, user_id) \
-                 DO UPDATE SET username = ?3, first_name = ?4, last_seen = ?5",
-                params![chat, user, username, first_name, seen_at],
-            )?;
+            connection
+                .execute(
+                    "INSERT INTO members (chat_id, user_id, username, first_name, last_seen) \
+                     VALUES (?1, ?2, ?3, ?4, ?5) \
+                     ON CONFLICT(chat_id, user_id) \
+                     DO UPDATE SET username = ?3, first_name = ?4, last_seen = ?5",
+                    params![chat, user, username, first_name, seen_at],
+                )
+                .with_context(|| format!("recording member '{user}' in chat '{chat}'"))?;
             Ok(())
         })
     }
@@ -103,9 +129,9 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the query cannot be executed.
-    pub fn member_by_username(&self, chat: i64, username: &str) -> rusqlite::Result<Option<i64>> {
+    pub fn member_by_username(&self, chat: i64, username: &str) -> anyhow::Result<Option<i64>> {
         self.with(|connection| {
-            connection
+            let user = connection
                 .query_row(
                     "SELECT user_id FROM members \
                      WHERE chat_id = ?1 AND username = ?2 COLLATE NOCASE",
@@ -113,6 +139,10 @@ impl Store {
                     |row| row.get(0),
                 )
                 .optional()
+                .with_context(|| {
+                    format!("reading the member behind username '{username}' in chat '{chat}'")
+                })?;
+            Ok(user)
         })
     }
 
@@ -121,9 +151,9 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the query cannot be executed.
-    pub fn member_username(&self, chat: i64, user: i64) -> rusqlite::Result<Option<String>> {
+    pub fn member_username(&self, chat: i64, user: i64) -> anyhow::Result<Option<String>> {
         self.with(|connection| {
-            connection
+            let username = connection
                 .query_row(
                     "SELECT username FROM members WHERE chat_id = ?1 AND user_id = ?2",
                     params![chat, user],
@@ -131,6 +161,10 @@ impl Store {
                 )
                 .optional()
                 .map(Option::flatten)
+                .with_context(|| {
+                    format!("reading the username of member '{user}' in chat '{chat}'")
+                })?;
+            Ok(username)
         })
     }
 
@@ -139,13 +173,18 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the query cannot be executed.
-    pub fn is_member(&self, chat: i64, user: i64) -> rusqlite::Result<bool> {
+    pub fn is_member(&self, chat: i64, user: i64) -> anyhow::Result<bool> {
         self.with(|connection| {
-            connection.query_row(
-                "SELECT EXISTS(SELECT 1 FROM members WHERE chat_id = ?1 AND user_id = ?2)",
-                params![chat, user],
-                |row| row.get(0),
-            )
+            let member = connection
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM members WHERE chat_id = ?1 AND user_id = ?2)",
+                    params![chat, user],
+                    |row| row.get(0),
+                )
+                .with_context(|| {
+                    format!("checking whether '{user}' is a member of chat '{chat}'")
+                })?;
+            Ok(member)
         })
     }
 
@@ -154,13 +193,18 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the query cannot be executed.
-    pub fn state(&self, chat: i64) -> rusqlite::Result<HashMap<String, i64>> {
+    pub fn state(&self, chat: i64) -> anyhow::Result<HashMap<String, i64>> {
         self.with(|connection| {
-            let mut statement =
-                connection.prepare("SELECT key, value FROM chat_state WHERE chat_id = ?1")?;
+            let mut statement = connection
+                .prepare("SELECT key, value FROM chat_state WHERE chat_id = ?1")
+                .with_context(|| {
+                    format!("preparing the read of every state value of chat '{chat}'")
+                })?;
             let rows = statement
-                .query_map(params![chat], |row| Ok((row.get(0)?, row.get(1)?)))?
-                .collect::<rusqlite::Result<HashMap<String, i64>>>()?;
+                .query_map(params![chat], |row| Ok((row.get(0)?, row.get(1)?)))
+                .with_context(|| format!("querying every state value of chat '{chat}'"))?
+                .collect::<rusqlite::Result<HashMap<String, i64>>>()
+                .with_context(|| format!("reading every state value of chat '{chat}'"))?;
             Ok(rows)
         })
     }
@@ -170,13 +214,15 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the statement cannot be executed.
-    pub fn set_state(&self, chat: i64, key: &str, value: i64) -> rusqlite::Result<()> {
+    pub fn set_state(&self, chat: i64, key: &str, value: i64) -> anyhow::Result<()> {
         self.with(|connection| {
-            connection.execute(
-                "INSERT INTO chat_state (chat_id, key, value) VALUES (?1, ?2, ?3) \
-                 ON CONFLICT(chat_id, key) DO UPDATE SET value = ?3",
-                params![chat, key, value],
-            )?;
+            connection
+                .execute(
+                    "INSERT INTO chat_state (chat_id, key, value) VALUES (?1, ?2, ?3) \
+                     ON CONFLICT(chat_id, key) DO UPDATE SET value = ?3",
+                    params![chat, key, value],
+                )
+                .with_context(|| format!("setting state '{key}' of chat '{chat}'"))?;
             Ok(())
         })
     }
@@ -186,13 +232,22 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the query cannot be executed.
-    pub fn owned(&self, chat: i64, user: i64) -> rusqlite::Result<HashSet<String>> {
+    pub fn owned(&self, chat: i64, user: i64) -> anyhow::Result<HashSet<String>> {
         self.with(|connection| {
             let mut statement = connection
-                .prepare("SELECT code FROM achievements WHERE chat_id = ?1 AND user_id = ?2")?;
+                .prepare("SELECT code FROM achievements WHERE chat_id = ?1 AND user_id = ?2")
+                .with_context(|| {
+                    format!("preparing the read of achievements owned by member '{user}' in chat '{chat}'")
+                })?;
             let rows = statement
-                .query_map(params![chat, user], |row| row.get(0))?
-                .collect::<rusqlite::Result<HashSet<String>>>()?;
+                .query_map(params![chat, user], |row| row.get(0))
+                .with_context(|| {
+                    format!("querying achievements owned by member '{user}' in chat '{chat}'")
+                })?
+                .collect::<rusqlite::Result<HashSet<String>>>()
+                .with_context(|| {
+                    format!("reading achievements owned by member '{user}' in chat '{chat}'")
+                })?;
             Ok(rows)
         })
     }
@@ -202,13 +257,17 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the statement cannot be executed.
-    pub fn unlock(&self, chat: i64, user: i64, code: &str, at: &str) -> rusqlite::Result<bool> {
+    pub fn unlock(&self, chat: i64, user: i64, code: &str, at: &str) -> anyhow::Result<bool> {
         self.with(|connection| {
-            let inserted = connection.execute(
-                "INSERT OR IGNORE INTO achievements (chat_id, user_id, code, unlocked_at) \
-                 VALUES (?1, ?2, ?3, ?4)",
-                params![chat, user, code, at],
-            )?;
+            let inserted = connection
+                .execute(
+                    "INSERT OR IGNORE INTO achievements (chat_id, user_id, code, unlocked_at) \
+                     VALUES (?1, ?2, ?3, ?4)",
+                    params![chat, user, code, at],
+                )
+                .with_context(|| {
+                    format!("unlocking achievement '{code}' for member '{user}' in chat '{chat}'")
+                })?;
             Ok(inserted > 0)
         })
     }
@@ -218,14 +277,9 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the query cannot be executed.
-    pub fn unlocked_at(
-        &self,
-        chat: i64,
-        user: i64,
-        code: &str,
-    ) -> rusqlite::Result<Option<String>> {
+    pub fn unlocked_at(&self, chat: i64, user: i64, code: &str) -> anyhow::Result<Option<String>> {
         self.with(|connection| {
-            connection
+            let unlocked_at = connection
                 .query_row(
                     "SELECT unlocked_at FROM achievements \
                      WHERE chat_id = ?1 AND user_id = ?2 AND code = ?3",
@@ -233,6 +287,10 @@ impl Store {
                     |row| row.get(0),
                 )
                 .optional()
+                .with_context(|| {
+                    format!("reading when member '{user}' unlocked achievement '{code}' in chat '{chat}'")
+                })?;
+            Ok(unlocked_at)
         })
     }
 }
@@ -261,21 +319,27 @@ impl Store {
         message: i32,
         user: i64,
         quote: Option<i64>,
-    ) -> rusqlite::Result<()> {
+    ) -> anyhow::Result<()> {
         self.with(|connection| {
-            connection.execute(
-                "INSERT INTO message_owners (chat_id, message_id, user_id, quote_id) \
-                 VALUES (?1, ?2, ?3, ?4) \
-                 ON CONFLICT(chat_id, message_id) \
-                 DO UPDATE SET user_id = ?3, quote_id = COALESCE(?4, quote_id)",
-                params![chat, message, user, quote],
-            )?;
-            connection.execute(
-                "DELETE FROM message_owners WHERE chat_id = ?1 AND message_id NOT IN \
-                 (SELECT message_id FROM message_owners WHERE chat_id = ?1 \
-                  ORDER BY message_id DESC LIMIT ?2)",
-                params![chat, REMEMBERED_PER_CHAT],
-            )?;
+            connection
+                .execute(
+                    "INSERT INTO message_owners (chat_id, message_id, user_id, quote_id) \
+                     VALUES (?1, ?2, ?3, ?4) \
+                     ON CONFLICT(chat_id, message_id) \
+                     DO UPDATE SET user_id = ?3, quote_id = COALESCE(?4, quote_id)",
+                    params![chat, message, user, quote],
+                )
+                .with_context(|| {
+                    format!("recording the owner of message '{message}' in chat '{chat}'")
+                })?;
+            connection
+                .execute(
+                    "DELETE FROM message_owners WHERE chat_id = ?1 AND message_id NOT IN \
+                     (SELECT message_id FROM message_owners WHERE chat_id = ?1 \
+                      ORDER BY message_id DESC LIMIT ?2)",
+                    params![chat, REMEMBERED_PER_CHAT],
+                )
+                .with_context(|| format!("trimming remembered messages of chat '{chat}'"))?;
             Ok(())
         })
     }
@@ -285,9 +349,9 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the query cannot be executed.
-    pub fn message_owner(&self, chat: i64, message: i32) -> rusqlite::Result<Option<MessageOwner>> {
+    pub fn message_owner(&self, chat: i64, message: i32) -> anyhow::Result<Option<MessageOwner>> {
         self.with(|connection| {
-            connection
+            let owner = connection
                 .query_row(
                     "SELECT user_id, quote_id FROM message_owners \
                      WHERE chat_id = ?1 AND message_id = ?2",
@@ -300,6 +364,10 @@ impl Store {
                     },
                 )
                 .optional()
+                .with_context(|| {
+                    format!("reading the owner of message '{message}' in chat '{chat}'")
+                })?;
+            Ok(owner)
         })
     }
 }
@@ -317,16 +385,18 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the query cannot be executed.
-    pub fn leaderboard(&self, chat: i64) -> rusqlite::Result<Vec<Standing>> {
+    pub fn leaderboard(&self, chat: i64) -> anyhow::Result<Vec<Standing>> {
         self.with(|connection| {
-            let mut statement = connection.prepare(
-                "SELECT a.user_id, m.first_name, COUNT(*) AS owned, MAX(a.unlocked_at) AS latest \
-                 FROM achievements a \
-                 LEFT JOIN members m ON m.chat_id = a.chat_id AND m.user_id = a.user_id \
-                 WHERE a.chat_id = ?1 \
-                 GROUP BY a.user_id \
-                 ORDER BY owned DESC, latest ASC",
-            )?;
+            let mut statement = connection
+                .prepare(
+                    "SELECT a.user_id, m.first_name, COUNT(*) AS owned, MAX(a.unlocked_at) AS latest \
+                     FROM achievements a \
+                     LEFT JOIN members m ON m.chat_id = a.chat_id AND m.user_id = a.user_id \
+                     WHERE a.chat_id = ?1 \
+                     GROUP BY a.user_id \
+                     ORDER BY owned DESC, latest ASC",
+                )
+                .with_context(|| format!("preparing the leaderboard of chat '{chat}'"))?;
             let standings = statement
                 .query_map(params![chat], |row| {
                     Ok(Standing {
@@ -334,8 +404,10 @@ impl Store {
                         name: row.get(1)?,
                         count: row.get(2)?,
                     })
-                })?
-                .collect::<rusqlite::Result<Vec<Standing>>>()?;
+                })
+                .with_context(|| format!("querying the leaderboard of chat '{chat}'"))?
+                .collect::<rusqlite::Result<Vec<Standing>>>()
+                .with_context(|| format!("reading the leaderboard of chat '{chat}'"))?;
             Ok(standings)
         })
     }
@@ -347,20 +419,26 @@ pub(crate) struct Member {
 }
 
 impl Store {
-    pub(crate) fn active_members(&self, chat: i64, since: &str) -> rusqlite::Result<Vec<Member>> {
+    pub(crate) fn active_members(&self, chat: i64, since: &str) -> anyhow::Result<Vec<Member>> {
         self.with(|connection| {
-            let mut statement = connection.prepare(
-                "SELECT user_id, first_name FROM members \
-                 WHERE chat_id = ?1 AND last_seen >= ?2",
-            )?;
+            let mut statement = connection
+                .prepare(
+                    "SELECT user_id, first_name FROM members \
+                     WHERE chat_id = ?1 AND last_seen >= ?2",
+                )
+                .with_context(|| {
+                    format!("preparing the read of active members of chat '{chat}'")
+                })?;
             let members = statement
                 .query_map(params![chat, since], |row| {
                     Ok(Member {
                         user: row.get(0)?,
                         name: row.get(1)?,
                     })
-                })?
-                .collect::<rusqlite::Result<Vec<Member>>>()?;
+                })
+                .with_context(|| format!("querying active members of chat '{chat}'"))?
+                .collect::<rusqlite::Result<Vec<Member>>>()
+                .with_context(|| format!("reading active members of chat '{chat}'"))?;
             Ok(members)
         })
     }
@@ -371,14 +449,18 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the query cannot be executed.
-    pub fn ranking(&self, chat: i64, key: &str) -> rusqlite::Result<Vec<Standing>> {
+    pub fn ranking(&self, chat: i64, key: &str) -> anyhow::Result<Vec<Standing>> {
         self.with(|connection| {
-            let mut statement = connection.prepare(
-                "SELECT s.user_id, m.first_name, s.value FROM member_stats s \
-                 LEFT JOIN members m ON m.chat_id = s.chat_id AND m.user_id = s.user_id \
-                 WHERE s.chat_id = ?1 AND s.key = ?2 AND s.value > 0 \
-                 ORDER BY s.value DESC, s.user_id ASC",
-            )?;
+            let mut statement = connection
+                .prepare(
+                    "SELECT s.user_id, m.first_name, s.value FROM member_stats s \
+                     LEFT JOIN members m ON m.chat_id = s.chat_id AND m.user_id = s.user_id \
+                     WHERE s.chat_id = ?1 AND s.key = ?2 AND s.value > 0 \
+                     ORDER BY s.value DESC, s.user_id ASC",
+                )
+                .with_context(|| {
+                    format!("preparing the ranking of chat '{chat}' by counter '{key}'")
+                })?;
             let ranked = statement
                 .query_map(params![chat, key], |row| {
                     Ok(Standing {
@@ -386,8 +468,14 @@ impl Store {
                         name: row.get(1)?,
                         count: row.get(2)?,
                     })
+                })
+                .with_context(|| {
+                    format!("querying the ranking of chat '{chat}' by counter '{key}'")
                 })?
-                .collect::<rusqlite::Result<Vec<Standing>>>()?;
+                .collect::<rusqlite::Result<Vec<Standing>>>()
+                .with_context(|| {
+                    format!("reading the ranking of chat '{chat}' by counter '{key}'")
+                })?;
             Ok(ranked)
         })
     }
@@ -397,15 +485,17 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the query cannot be executed.
-    pub fn member_name(&self, chat: i64, user: i64) -> rusqlite::Result<Option<String>> {
+    pub fn member_name(&self, chat: i64, user: i64) -> anyhow::Result<Option<String>> {
         self.with(|connection| {
-            connection
+            let name = connection
                 .query_row(
                     "SELECT first_name FROM members WHERE chat_id = ?1 AND user_id = ?2",
                     params![chat, user],
                     |row| row.get(0),
                 )
                 .optional()
+                .with_context(|| format!("reading the name of member '{user}' in chat '{chat}'"))?;
+            Ok(name)
         })
     }
 }
@@ -452,6 +542,24 @@ mod tests {
         assert_that!(value)
             .named("counter that was never bumped")
             .is_equal_to(0);
+    }
+
+    #[test]
+    fn carries_the_chat_and_the_key_into_the_error_chain() {
+        let store = store();
+        store
+            .with(|connection| {
+                connection.execute_batch("DROP TABLE member_stats")?;
+                Ok(())
+            })
+            .unwrap();
+        let failure = store.stat(42, 7, "cuckold_days").unwrap_err();
+        let chain = format!("{failure:#}");
+        assert_that!(chain.as_str())
+            .named("error chain")
+            .contains("cuckold_days")
+            .contains("42")
+            .contains("no such table");
     }
 
     #[test]
