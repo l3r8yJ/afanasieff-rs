@@ -37,7 +37,7 @@ pub fn set_generated_in_cron_for_tests(per_mille: u32) {
     GENERATED_IN_CRON.store(per_mille, Ordering::Relaxed);
 }
 
-const BURST_MIN: u32 = 2;
+const BURST_MIN: u32 = 1;
 
 const BURST_MAX: u32 = 4;
 
