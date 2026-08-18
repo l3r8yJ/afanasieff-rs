@@ -69,3 +69,6 @@ tarpaulin-report.html
 
 # Brainstorming artifacts
 /docs/superpowers/
+
+# Research and planning artifacts
+/.superpowers/
