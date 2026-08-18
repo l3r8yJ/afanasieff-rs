@@ -12,6 +12,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../../migrations/0001_init.sql"),
     include_str!("../../../migrations/0002_achievements.sql"),
     include_str!("../../../migrations/0003_reactions.sql"),
+    include_str!("../../../migrations/0004_drop_quote_score.sql"),
 ];
 
 pub struct Store {
@@ -77,7 +78,7 @@ impl Store {
             let quote = connection
                 .query_row(
                     "SELECT id, text FROM quotes WHERE source = ?1 \
-                     ORDER BY (MIN(score, 20) + 1) * (ABS(RANDOM()) % 1000) DESC LIMIT 1",
+                     ORDER BY RANDOM() LIMIT 1",
                     params![source],
                     |row| Ok((row.get(0)?, row.get(1)?)),
                 )
@@ -203,42 +204,6 @@ impl Store {
                 .commit()
                 .context("committing the promotion of the oldest matthew message")?;
             Ok(Some(text))
-        })
-    }
-
-    /// Adds to the score of the quote, which makes it come up more often.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the statement cannot be executed.
-    pub fn bump_quote_score(&self, quote: i64) -> anyhow::Result<()> {
-        self.with(|connection| {
-            connection
-                .execute(
-                    "UPDATE quotes SET score = score + 1 WHERE id = ?1",
-                    params![quote],
-                )
-                .with_context(|| format!("bumping the score of quote '{quote}'"))?;
-            Ok(())
-        })
-    }
-
-    /// Returns the score of the quote.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the query cannot be executed, including when the
-    /// quote does not exist.
-    pub fn quote_score(&self, quote: i64) -> anyhow::Result<i64> {
-        self.with(|connection| {
-            let score = connection
-                .query_row(
-                    "SELECT score FROM quotes WHERE id = ?1",
-                    params![quote],
-                    |row| row.get(0),
-                )
-                .with_context(|| format!("reading the score of quote '{quote}'"))?;
-            Ok(score)
         })
     }
 
@@ -540,81 +505,6 @@ mod tests {
         assert_that!(again)
             .named("second store of the same message")
             .is_false();
-    }
-
-    #[test]
-    fn favours_a_quote_with_a_higher_score() {
-        let store = store();
-        store
-            .with(|connection| Ok(connection.execute_batch("DELETE FROM quotes")?))
-            .unwrap();
-        store
-            .with(|connection| {
-                Ok(connection.execute_batch(
-                    "INSERT INTO quotes (source, text, score) VALUES ('matthew', 'редкая', 0); \
-                     INSERT INTO quotes (source, text, score) VALUES ('matthew', 'частая', 9);",
-                )?)
-            })
-            .unwrap();
-        let mut often = 0;
-        for _ in 0..200 {
-            if store.random_quote("matthew").unwrap().as_deref() == Some("частая") {
-                often += 1;
-            }
-        }
-        assert_that!(often)
-            .named("draws of the higher scored quote")
-            .is_greater_than(100);
-    }
-
-    #[test]
-    fn keeps_a_zero_score_quote_reachable_against_an_absurd_rival_score() {
-        let store = store();
-        store
-            .with(|connection| Ok(connection.execute_batch("DELETE FROM quotes")?))
-            .unwrap();
-        store
-            .with(|connection| {
-                Ok(connection.execute_batch(
-                    "INSERT INTO quotes (source, text, score) VALUES ('matthew', 'обычная', 0); \
-                     INSERT INTO quotes (source, text, score) VALUES ('matthew', 'звезда', 1000000);",
-                )?)
-            })
-            .unwrap();
-        let mut drawn = 0;
-        for _ in 0..500 {
-            if store.random_quote("matthew").unwrap().as_deref() == Some("обычная") {
-                drawn += 1;
-            }
-        }
-        assert_that!(drawn)
-            .named("draws of the zero-score quote against an absurd rival score")
-            .is_greater_than(0);
-    }
-
-    #[test]
-    fn raises_the_score_of_a_quote() {
-        let store = store();
-        let id: i64 = store
-            .with(|connection| {
-                Ok(connection.query_row("SELECT id FROM quotes LIMIT 1", [], |row| row.get(0))?)
-            })
-            .unwrap();
-        store.bump_quote_score(id).unwrap();
-        store.bump_quote_score(id).unwrap();
-        let score: i64 =
-            store
-                .with(|connection| {
-                    Ok(connection.query_row(
-                        "SELECT score FROM quotes WHERE id = ?1",
-                        [id],
-                        |row| row.get(0),
-                    )?)
-                })
-                .unwrap();
-        assert_that!(score)
-            .named("score after two reactions")
-            .is_equal_to(2);
     }
 
     #[test]

@@ -4,9 +4,8 @@ use teloxide::types::MessageReactionUpdated;
 
 use crate::ops::store::{MATTHEW_USERNAME, Store};
 
-/// Counts a reaction: it raises the score of a quote, resets the streak of the
-/// member who was reacted to, and pushes a message Matthew wrote into the
-/// quotes ahead of the queue.
+/// Counts a reaction: it resets the streak of the member who was reacted to,
+/// and pushes a message Matthew wrote into the quotes ahead of the queue.
 ///
 /// # Errors
 ///
@@ -33,12 +32,6 @@ pub async fn observe(store: Arc<Store>, reaction: MessageReactionUpdated) -> any
             return Ok(());
         }
     };
-    if let Some(quote) = owner.quote
-        && reaction.old_reaction.is_empty()
-        && let Err(error) = store.bump_quote_score(quote)
-    {
-        log::error!("score of quote '{quote}' was not raised: '{error:#}'");
-    }
     let actor = reaction
         .user()
         .map(|user| i64::try_from(user.id.0).unwrap_or(i64::MAX));

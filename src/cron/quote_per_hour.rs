@@ -129,9 +129,6 @@ mod tests {
         assert_that!(owner.quote)
             .named("quote id carried by the hourly message")
             .is_some();
-        assert_that!(store.quote_score(owner.quote.unwrap()))
-            .named("score of the quote the hourly message carried")
-            .is_ok();
     }
 
     #[tokio::test]
