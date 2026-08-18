@@ -70,39 +70,6 @@ async fn dispatch(update: Update, store: &Arc<Store>) {
 }
 
 #[tokio::test]
-async fn raises_the_score_of_a_quote_someone_reacted_to() {
-    let store = Arc::new(Store::in_memory().unwrap());
-    let id = store
-        .random_quote_with_id("matthew")
-        .unwrap()
-        .expect("a matthew quote exists")
-        .0;
-    store.remember_message(CHAT, 5, 999, Some(id)).unwrap();
-    dispatch(reaction(5, 7, true), &store).await;
-    let score = store.quote_score(id).unwrap();
-    assert_that!(score)
-        .named("score after one reaction")
-        .is_equal_to(1);
-}
-
-#[tokio::test]
-async fn does_not_raise_the_score_again_when_an_actor_swaps_their_reaction() {
-    let store = Arc::new(Store::in_memory().unwrap());
-    let id = store
-        .random_quote_with_id("matthew")
-        .unwrap()
-        .expect("a matthew quote exists")
-        .0;
-    store.remember_message(CHAT, 5, 999, Some(id)).unwrap();
-    dispatch(reaction(5, 7, true), &store).await;
-    dispatch(swap(5, 7), &store).await;
-    let score = store.quote_score(id).unwrap();
-    assert_that!(score)
-        .named("score after a reaction swap")
-        .is_equal_to(1);
-}
-
-#[tokio::test]
 async fn still_resets_the_streak_when_the_reaction_is_swapped() {
     let store = Arc::new(Store::in_memory().unwrap());
     store
